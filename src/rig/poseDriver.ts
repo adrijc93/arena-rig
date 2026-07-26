@@ -4,7 +4,8 @@ import * as THREE from "three";
    ARENA RIG — motor de animación procedural multi-rig
    Una Pose abstracta (ángulos por articulación) aplicable a
    cualquier esqueleto humanoide: KayKit, Rigify (Quaternius),
-   Mixamo... Convención: rotation.x negativo = miembro hacia delante.
+   Unreal (UAL2), Mixamo...
+   Convención: rotation.x negativo = miembro hacia delante.
    ════════════════════════════════════════════════════════════════ */
 
 export interface Pose {
@@ -70,7 +71,7 @@ const PROFILES: Record<string, BoneNames> = {
     legUpL: ["upperleg.l"], legLoL: ["lowerleg.l"],
     legUpR: ["upperleg.r"], legLoR: ["lowerleg.r"],
   },
-  // Rigify DEF (Quaternius Universal: "DEF-upper_arm.L" → "DEF-upper_armL")
+  // Rigify DEF (Quaternius UAL1: "DEF-upper_arm.L" → "DEF-upper_armL")
   rigify: {
     hips: ["DEF-hips"],
     spineChain: [["DEF-spine.001", "DEF-spine.002", "DEF-spine.003"], ["DEF-spine"]],
@@ -79,6 +80,16 @@ const PROFILES: Record<string, BoneNames> = {
     armUpR: ["DEF-upper_arm.R"], armLoR: ["DEF-forearm.R"],
     legUpL: ["DEF-thigh.L"], legLoL: ["DEF-shin.L"],
     legUpR: ["DEF-thigh.R"], legLoR: ["DEF-shin.R"],
+  },
+  // Unreal (export Unreal-Godot de Quaternius UAL2: pelvis/spine_01-03)
+  unreal: {
+    hips: ["pelvis"],
+    spineChain: [["spine_01", "spine_02", "spine_03"]],
+    head: ["Head"],
+    armUpL: ["upperarm_l"], armLoL: ["lowerarm_l"],
+    armUpR: ["upperarm_r"], armLoR: ["lowerarm_r"],
+    legUpL: ["thigh_l"], legLoL: ["calf_l"],
+    legUpR: ["thigh_r"], legLoR: ["calf_r"],
   },
   // Mixamo
   mixamo: {
@@ -92,7 +103,7 @@ const PROFILES: Record<string, BoneNames> = {
     legUpL: ["mixamorig:LeftUpLeg", "mixamorigLeftUpLeg", "LeftUpLeg"],
     legLoL: ["mixamorig:LeftLeg", "mixamorigLeftLeg", "LeftLeg"],
     legUpR: ["mixamorig:RightUpLeg", "mixamorigRightUpLeg", "RightUpLeg"],
-    legLoR: ["mixamorig:RightLeg", "mixamorigRightLeg", "RightLeg"],
+    legLoL: ["mixamorig:RightLeg", "mixamorigRightLeg", "RightLeg"],
   },
 };
 
