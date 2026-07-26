@@ -114,27 +114,42 @@ export default function App() {
         const mixer = new THREE.AnimationMixer(model);
         const actions: Record<string, THREE.AnimationAction> = {};
         gltf.animations.forEach((c) => { actions[c.name] = mixer.clipAction(c); });
-        // calibración: si el bind pose es A-pose/T-pose, usar el primer
-        // fotograma del clip de idle como pose base (brazos abajo).
-        // Se restauran las posiciones después (los clips traen root motion).
-        let saved: Map<THREE.Object3D, { p: THREE.Vector3; s: THREE.Vector3 }> | null = null;
-        if (f.calibrateClip && actions[f.calibrateClip]) {
-          saved = new Map();
-          model.traverse((o) => saved!.set(o, { p: o.position.clone(), s: o.scale.clone() }));
-          actions[f.calibrateClip].play();
-          mixer.update(0.05);
+        let rig: Rig | null = null;
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          // calibración: si el bind pose es A-pose/T-pose, usar el primer
+          // fotograma del clip de idle como pose base (brazos abajo).
+          // Se restauran las posiciones después (los clips traen root motion).
+          let saved: Map<THREE.Object3D, { p: THREE.Vector3; s: THREE.Vector3 }> | null = null;
+          if (f.calibrateClip && actions[f.calibrateClip]) {
+            saved = new Map();
+            model.traverse((o) => saved!.set(o, { p: o.position.clone(), s: o.scale.clone() }));
+            actions[f.calibrateClip].play();
+            mixer.update(0.05);
+          }
+          rig = findRig(model);
+          if (f.calibrateClip && actions[f.calibrateClip]) {
+            actions[f.calibrateClip].stop();
+            saved!.forEach((v, o) => { o.position.copy(v.p); o.scale.copy(v.s); });
+            if (rig) rig.hipsBaseY = rig.hips.position.y;
+          }
+          current = { root: model, loaded: { rig, mixer, actions }, action: null, prev: clonePose(GUARD) };
+          loading = false;
+          setStatus(rig
+            ? `${f.autor} — rig "${rig.profile}" detectado (${Object.keys(actions).length} clips)`
+            : `${f.autor} — ¡rig NO reconocido! solo clips`);
+        };
+        if (f.clipSource) {
+          // los clips viven en otro archivo con el mismo rig (p.ej. Mannequin_F ← UAL2)
+          new GLTFLoader().load(f.clipSource, (g2) => {
+            g2.animations.forEach((c) => { actions[c.name] = mixer.clipAction(c); });
+            finish();
+          }, undefined, () => finish());
+        } else {
+          finish();
         }
-        const rig = findRig(model);
-        if (f.calibrateClip && actions[f.calibrateClip]) {
-          actions[f.calibrateClip].stop();
-          saved!.forEach((v, o) => { o.position.copy(v.p); o.scale.copy(v.s); });
-          if (rig) rig.hipsBaseY = rig.hips.position.y;
-        }
-        current = { root: model, loaded: { rig, mixer, actions }, action: null, prev: clonePose(GUARD) };
-        loading = false;
-        setStatus(rig
-          ? `${f.autor} — rig "${rig.profile}" detectado (${gltf.animations.length} clips)`
-          : `${f.autor} — ¡rig NO reconocido! solo clips`);
       }, undefined, () => {
         loading = false;
         setStatus("Error cargando el modelo");
