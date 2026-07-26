@@ -4,26 +4,26 @@ import * as THREE from "three";
    ARENA RIG — motor de animación procedural multi-rig
    Una Pose abstracta (ángulos por articulación) aplicable a
    cualquier esqueleto humanoide: KayKit, Rigify (Quaternius),
-   Unreal (UAL2), Mixamo...
-   Convención: rotation.x negativo = miembro hacia delante.
+   Mixamo... Convención: rotation.x negativo = miembro hacia delante.
    ════════════════════════════════════════════════════════════════ */
 
 export interface Pose {
   bob: number;
-  hipsY: number; hipsZ: number;
+  hipsX: number; hipsY: number; hipsZ: number; // inclinación / guiñada / balanceo
   lean: number; twist: number;
   headX: number; headY: number;
   uaR: [number, number, number]; faR: number;
   uaL: [number, number, number]; faL: number;
-  thL: number; shL: number; thR: number; shR: number;
+  thL: number; thLY: number; shL: number; // muslo / apertura de muslo / rodilla
+  thR: number; thRY: number; shR: number;
 }
 
 export const GUARD: Pose = {
-  bob: 0, hipsY: 0, hipsZ: 0, lean: 0.06, twist: 0.15,
+  bob: 0, hipsX: 0, hipsY: 0, hipsZ: 0, lean: 0.06, twist: 0.15,
   headX: 0, headY: 0.15,
   uaR: [-0.5, 0, 0.12], faR: -1.1,
   uaL: [-0.4, 0.4, 0], faL: -1.3,
-  thL: 0, shL: 0.08, thR: 0, shR: 0.08,
+  thL: 0, thLY: 0, shL: 0.08, thR: 0, thRY: 0, shR: 0.08,
 };
 
 export const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
@@ -38,17 +38,23 @@ export function lerpPose(a: Pose, b: Pose, k: number): Pose {
   const L = (x: number, y: number) => x + (y - x) * k;
   const L3 = (x: [number, number, number], y: [number, number, number]): [number, number, number] => [L(x[0], y[0]), L(x[1], y[1]), L(x[2], y[2])];
   return {
-    bob: L(a.bob, b.bob), hipsY: L(a.hipsY, b.hipsY), hipsZ: L(a.hipsZ, b.hipsZ),
+    bob: L(a.bob, b.bob), hipsX: L(a.hipsX, b.hipsX), hipsY: L(a.hipsY, b.hipsY), hipsZ: L(a.hipsZ, b.hipsZ),
     lean: L(a.lean, b.lean), twist: L(a.twist, b.twist),
     headX: L(a.headX, b.headX), headY: L(a.headY, b.headY),
     uaR: L3(a.uaR, b.uaR), faR: L(a.faR, b.faR),
     uaL: L3(a.uaL, b.uaL), faL: L(a.faL, b.faL),
-    thL: L(a.thL, b.thL), shL: L(a.shL, b.shL),
-    thR: L(a.thR, b.thR), shR: L(a.shR, b.shR),
+    thL: L(a.thL, b.thL), thLY: L(a.thLY, b.thLY), shL: L(a.shL, b.shL),
+    thR: L(a.thR, b.thR), thRY: L(a.thRY, b.thRY), shR: L(a.shR, b.shR),
   };
 }
 
 /* ── Detección de esqueleto: perfiles de nombres por familia de rig ── */
+
+/* Rigs cuya malla mira a -Z local: conjugar Δ por rotY(π) ⇔ negar X y Z,
+   para que "delante" en la Pose sea el frente anatómico del modelo.
+   Verificado por anatomía (pecho/pies) en 2026-07: los exports Godot y
+   Unreal-Godot de Quaternius miran a +Z (estándar glTF) → ninguno activo. */
+const FLIPZ: Record<string, boolean> = {};
 
 interface BoneNames {
   hips: string[];
@@ -71,7 +77,7 @@ const PROFILES: Record<string, BoneNames> = {
     legUpL: ["upperleg.l"], legLoL: ["lowerleg.l"],
     legUpR: ["upperleg.r"], legLoR: ["lowerleg.r"],
   },
-  // Rigify DEF (Quaternius UAL1: "DEF-upper_arm.L" → "DEF-upper_armL")
+  // Rigify DEF (Quaternius Universal: "DEF-upper_arm.L" → "DEF-upper_armL")
   rigify: {
     hips: ["DEF-hips"],
     spineChain: [["DEF-spine.001", "DEF-spine.002", "DEF-spine.003"], ["DEF-spine"]],
@@ -103,7 +109,7 @@ const PROFILES: Record<string, BoneNames> = {
     legUpL: ["mixamorig:LeftUpLeg", "mixamorigLeftUpLeg", "LeftUpLeg"],
     legLoL: ["mixamorig:LeftLeg", "mixamorigLeftLeg", "LeftLeg"],
     legUpR: ["mixamorig:RightUpLeg", "mixamorigRightUpLeg", "RightUpLeg"],
-    legLoL: ["mixamorig:RightLeg", "mixamorigRightLeg", "RightLeg"],
+    legLoR: ["mixamorig:RightLeg", "mixamorigRightLeg", "RightLeg"],
   },
 };
 
@@ -120,6 +126,7 @@ export interface Rig {
   rest: Map<THREE.Object3D, THREE.Quaternion>;
   hipsBaseY: number;
   unit: number;
+  flipZ: boolean; // true si la malla mira a -Z: negar X/Z de las rotaciones
 }
 
 export function findRig(root: THREE.Object3D): Rig | null {
@@ -146,6 +153,7 @@ export function findRig(root: THREE.Object3D): Rig | null {
       charRoot: root, profile, hips, spine: spine as THREE.Object3D[], head,
       armUpL, armLoL, armUpR, armLoR, legUpL, legLoL, legUpR, legLoR,
       rest, hipsBaseY: hips.position.y, unit: hips.position.y / 1.02,
+      flipZ: !!FLIPZ[profile],
     };
   }
   return null;
@@ -168,14 +176,15 @@ function relQuat(o: THREE.Object3D, stop: THREE.Object3D, out: THREE.Quaternion)
 
 export function rotBone(rig: Rig, bone: THREE.Object3D, x: number, y: number, z: number) {
   relQuat(bone.parent!, rig.charRoot, _P);
-  _dq.setFromEuler(_e.set(x, y, z));
+  // flipZ ⇔ conjugar por rotY(π): Rx(θ)→Rx(-θ), Ry(θ)→Ry(θ), Rz(θ)→Rz(-θ)
+  _dq.setFromEuler(_e.set(rig.flipZ ? -x : x, y, rig.flipZ ? -z : z));
   const rest = rig.rest.get(bone)!;
   bone.quaternion.copy(_tmp.copy(_P).invert().multiply(_dq).multiply(_P).multiply(rest));
 }
 
 export function applyPose(rig: Rig, p: Pose) {
   rig.hips.position.y = rig.hipsBaseY + p.bob * rig.unit;
-  rotBone(rig, rig.hips, 0, p.hipsY, p.hipsZ);
+  rotBone(rig, rig.hips, p.hipsX, p.hipsY, p.hipsZ);
   const n = rig.spine.length;
   rig.spine.forEach((s) => rotBone(rig, s, p.lean / n, p.twist / n, 0));
   rotBone(rig, rig.head, p.headX, p.headY, 0);
@@ -183,8 +192,8 @@ export function applyPose(rig: Rig, p: Pose) {
   rotBone(rig, rig.armLoR, p.faR, 0, 0);
   rotBone(rig, rig.armUpL, p.uaL[0], p.uaL[1], p.uaL[2]);
   rotBone(rig, rig.armLoL, p.faL, 0, 0);
-  rotBone(rig, rig.legUpL, p.thL, 0, 0);
+  rotBone(rig, rig.legUpL, p.thL, p.thLY, 0);
   rotBone(rig, rig.legLoL, p.shL, 0, 0);
-  rotBone(rig, rig.legUpR, p.thR, 0, 0);
+  rotBone(rig, rig.legUpR, p.thR, p.thRY, 0);
   rotBone(rig, rig.legLoR, p.shR, 0, 0);
 }

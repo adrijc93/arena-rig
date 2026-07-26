@@ -1,0 +1,329 @@
+import { clamp01, clonePose, easeIn, easeOut } from "./poseDriver";
+import type { Pose } from "./poseDriver";
+
+/* ════════════════════════════════════════════════════════════════
+   SET MMA — biblioteca procedural de movimientos y posturas.
+   De pie: golpes, patadas, clinch, sprawl, derribo.
+   Suelo: guardias, montada, ground & pound, sumisión, KO.
+   Cada función devuelve la Pose para un instante t (segundos).
+   ════════════════════════════════════════════════════════════════ */
+
+export type MmaMoveId =
+  | "guardia-mma" | "esquiva"
+  | "jab" | "cross" | "hook" | "uppercut" | "codo"
+  | "low-kick" | "circular" | "frontal" | "rodilla"
+  | "clinch" | "sprawl" | "derribo"
+  | "guardia-abajo" | "guardia-arriba" | "montada" | "ground-pound" | "sumision"
+  | "ko-plano" | "celebracion";
+
+export const MMA_MOVES: { id: MmaMoveId; label: string; grupo: string }[] = [
+  { id: "guardia-mma", label: "Guardia MMA", grupo: "De pie" },
+  { id: "esquiva", label: "Esquiva (slip)", grupo: "De pie" },
+  { id: "jab", label: "Jab", grupo: "Golpes" },
+  { id: "cross", label: "Directo (cross)", grupo: "Golpes" },
+  { id: "hook", label: "Gancho (hook)", grupo: "Golpes" },
+  { id: "uppercut", label: "Uppercut", grupo: "Golpes" },
+  { id: "codo", label: "Codo", grupo: "Golpes" },
+  { id: "low-kick", label: "Low kick", grupo: "Patadas" },
+  { id: "circular", label: "Circular alta", grupo: "Patadas" },
+  { id: "frontal", label: "Frontal (teep)", grupo: "Patadas" },
+  { id: "rodilla", label: "Rodillazo", grupo: "Patadas" },
+  { id: "clinch", label: "Clinch", grupo: "Lucha" },
+  { id: "sprawl", label: "Sprawl", grupo: "Lucha" },
+  { id: "derribo", label: "Derribo (double leg)", grupo: "Lucha" },
+  { id: "guardia-abajo", label: "Guardia (abajo)", grupo: "Suelo" },
+  { id: "guardia-arriba", label: "Guardia (arriba)", grupo: "Suelo" },
+  { id: "montada", label: "Montada", grupo: "Suelo" },
+  { id: "ground-pound", label: "Ground & pound", grupo: "Suelo" },
+  { id: "sumision", label: "Sumisión (armbar)", grupo: "Suelo" },
+  { id: "ko-plano", label: "KO (caída atrás)", grupo: "Suelo" },
+  { id: "celebracion", label: "Celebración", grupo: "Extra" },
+];
+
+/** Guardia MMA: manos altas, perfil blado, rebote ligero */
+const MMA_GUARD: Pose = {
+  bob: 0, hipsX: 0, hipsY: 0, hipsZ: 0,
+  lean: 0.1, twist: 0.35,
+  headX: 0.08, headY: 0,
+  uaR: [-1.0, 0, 0.3], faR: -2.0,
+  uaL: [-1.1, -0.2, -0.05], faL: -2.05,
+  thL: -0.22, thLY: 0, shL: 0.35,
+  thR: 0.18, thRY: 0, shR: 0.3,
+};
+
+const cyc = (t: number, period: number) => (t % period) / period;
+
+export function mmaPoseFor(id: string, t: number): Pose {
+  const p = clonePose(MMA_GUARD);
+
+  switch (id) {
+    /* ───────────── DE PIE ───────────── */
+    case "guardia-mma": {
+      const b = Math.abs(Math.sin(t * 4.2));
+      p.bob = b * 0.025;
+      p.twist = 0.35 + Math.sin(t * 1.4) * 0.04;
+      p.uaR = [-1.0 + Math.sin(t * 4.2) * 0.04, 0, 0.3];
+      p.uaL = [-1.1 + Math.cos(t * 4.2) * 0.04, -0.2, -0.05];
+      return p;
+    }
+
+    case "esquiva": {
+      const u = cyc(t, 1.4);
+      const k = Math.sin(u * Math.PI * 2); // izquierda-derecha
+      p.lean = 0.1 + Math.abs(k) * 0.12;
+      p.twist = 0.35 + k * 0.3;
+      p.headX = 0.08 + Math.abs(k) * 0.1;
+      p.bob = -Math.abs(k) * 0.05;
+      return p;
+    }
+
+    /* ───────────── GOLPES ───────────── */
+    case "jab": {
+      const u = cyc(t, 0.9);
+      let ext: number;
+      if (u < 0.25) ext = easeOut(u / 0.25);            // sale rápido
+      else if (u < 0.45) ext = 1;
+      else ext = 1 - easeIn((u - 0.45) / 0.55);         // vuelve
+      p.uaL = [-1.1 - ext * 0.5, -0.2 + ext * 0.2, -0.05];
+      p.faL = -2.05 + ext * 1.95;                       // brazo se estira
+      p.twist = 0.35 + ext * 0.18;
+      p.bob = ext * 0.03;
+      p.lean = 0.1 + ext * 0.08;
+      return p;
+    }
+
+    case "cross": {
+      const u = cyc(t, 1.15);
+      let ext: number;
+      if (u < 0.3) ext = easeOut(u / 0.3);
+      else if (u < 0.5) ext = 1;
+      else ext = 1 - easeIn((u - 0.5) / 0.5);
+      p.uaR = [-1.0 - ext * 0.58, 0, 0.3 - ext * 0.28];
+      p.faR = -2.0 + ext * 1.92;
+      p.twist = 0.35 - ext * 0.75;                      // la cadera gira con el golpe
+      p.hipsY = -ext * 0.22;
+      p.lean = 0.1 + ext * 0.12;
+      p.bob = ext * 0.03;
+      return p;
+    }
+
+    case "hook": {
+      const u = cyc(t, 1.1);
+      const s = u < 0.4 ? easeOut(u / 0.4) : 1 - easeIn((u - 0.4) / 0.6);
+      p.uaL = [-1.25, -0.2 + s * 1.0, -0.05];           // arco circular
+      p.faL = -1.55;                                     // codo a 90°
+      p.twist = 0.35 + s * 0.55;
+      p.hipsY = s * 0.15;
+      p.lean = 0.1 + s * 0.08;
+      p.uaR = [-1.0, 0, 0.3]; p.faR = -2.0;             // la otra protege
+      return p;
+    }
+
+    case "uppercut": {
+      const u = cyc(t, 1.2);
+      const dip = u < 0.3 ? easeIn(u / 0.3) : 0;                     // carga abajo
+      const up = u < 0.3 ? 0 : u < 0.55 ? easeOut((u - 0.3) / 0.25) : 1 - easeIn((u - 0.55) / 0.45);
+      p.bob = -dip * 0.09 + up * 0.1;
+      p.lean = 0.1 + dip * 0.25 - up * 0.15;
+      p.uaR = [-1.0 + dip * 0.5 - up * 0.85, 0, 0.25];
+      p.faR = -2.0 + up * 0.3;                          // sube con el codo cerrado
+      p.twist = 0.35 - up * 0.45;
+      return p;
+    }
+
+    case "codo": {
+      const u = cyc(t, 1.0);
+      const s = u < 0.35 ? easeOut(u / 0.35) : 1 - easeIn((u - 0.35) / 0.65);
+      p.uaR = [-1.35, -0.5 + s * 1.1, 0.1];
+      p.faR = -2.45;                                     // puño pegado: pega el codo
+      p.twist = 0.35 + s * 0.5;
+      p.lean = 0.1 + s * 0.1;
+      return p;
+    }
+
+    /* ───────────── PATADAS Y RODILLAS ───────────── */
+    case "low-kick": {
+      const u = cyc(t, 1.4);
+      let k: number;
+      if (u < 0.35) k = -easeIn(u / 0.35);               // carga atrás
+      else if (u < 0.6) k = -1 + easeOut((u - 0.35) / 0.25) * 2; // látigo
+      else k = 1 - easeIn((u - 0.6) / 0.4);
+      p.thR = 0.18 + k * -1.45;                          // impacto bajo: pierna casi horizontal
+      p.shR = k > 0 ? 0.08 : 0.7;
+      p.bob = -Math.max(0, k) * 0.05;                    // la base cede
+      p.hipsY = Math.max(0, k) * -0.45;
+      p.twist = 0.35 - Math.max(0, k) * 0.55;
+      p.lean = 0.1 - Math.max(0, k) * 0.35;              // se echa atrás al patear
+      p.uaR = [-1.0 + Math.max(0, k) * 0.5, 0, 0.3];     // brazos compensan
+      p.uaL = [-1.1 - Math.max(0, k) * 0.4, -0.2, -0.05];
+      p.thL = -0.22; p.shL = 0.4;
+      return p;
+    }
+
+    case "circular": {
+      const u = cyc(t, 1.6);
+      let k: number;
+      if (u < 0.4) k = easeIn(u / 0.4) * 0.3 - 0.3;      // carga
+      else if (u < 0.62) k = easeOut((u - 0.4) / 0.22);  // sube la pierna
+      else k = 1 - easeIn((u - 0.62) / 0.38);
+      p.thR = 0.18 - Math.max(0, k) * 1.75;              // alto
+      p.thRY = Math.max(0, k) * 0.5;
+      p.shR = 0.3 - Math.max(0, k) * 0.22;               // extendida en el impacto
+      p.hipsY = Math.max(0, k) * -0.55;
+      p.twist = 0.35 - Math.max(0, k) * 0.7;
+      p.lean = 0.1 - Math.max(0, k) * 0.4;
+      p.uaR = [-0.6, 0, 0.8]; p.faR = -1.2;
+      p.uaL = [-1.1, -0.2, -0.05]; p.faL = -2.0;
+      return p;
+    }
+
+    case "frontal": {
+      const u = cyc(t, 1.3);
+      const lift = u < 0.35 ? easeOut(u / 0.35) : 1 - easeIn((u - 0.35) / 0.65);
+      const push = u > 0.35 && u < 0.55 ? easeOut((u - 0.35) / 0.2) : u >= 0.55 ? 1 - easeIn((u - 0.55) / 0.45) : 0;
+      p.thR = 0.18 - lift * 1.25;
+      p.shR = 1.6 - push * 1.5;                          // recogida → empuje
+      p.lean = 0.1 - push * 0.3;
+      p.uaR = [-1.0 - push * 0.4, 0, 0.3]; p.faR = -2.0 + push * 0.8;
+      p.uaL = [-1.1 - push * 0.4, -0.2, -0.05]; p.faL = -2.05 + push * 0.8;
+      return p;
+    }
+
+    case "rodilla": {
+      const u = cyc(t, 1.2);
+      const k = u < 0.35 ? easeOut(u / 0.35) : 1 - easeIn((u - 0.35) / 0.65);
+      p.thR = 0.18 - k * 1.55;
+      p.shR = 0.3 + k * 1.7;                             // pierna recogida fuerte
+      p.bob = k * 0.12;                                  // salto al impacto
+      p.lean = 0.1 + k * 0.15;
+      p.uaR = [-1.0 + k * 1.2, 0, 0.3]; p.faR = -2.0;    // tira del "cuello"
+      p.uaL = [-1.1 + k * 1.2, -0.2, -0.05]; p.faL = -2.05;
+      return p;
+    }
+
+    /* ───────────── LUCHA ───────────── */
+    case "clinch": {
+      const pull = Math.max(0, Math.sin(t * 1.6));       // tirones de muay thai
+      p.uaR = [-1.35, -0.25, 0.1]; p.faR = -1.9;
+      p.uaL = [-1.35, 0.25, -0.1]; p.faL = -1.9;
+      p.twist = 0.2; p.lean = 0.15 + pull * 0.12;
+      p.headX = 0.15;
+      p.bob = pull * 0.03;
+      p.uaR[0] += pull * 0.2; p.uaL[0] += pull * 0.2;
+      return p;
+    }
+
+    case "sprawl": {
+      const u = cyc(t, 2.0);
+      const k = u < 0.25 ? easeOut(u / 0.25) : 1 - easeIn((u - 0.25) / 0.75) * 0.85;
+      p.hipsX = k * 0.8;                                 // pecho al suelo
+      p.bob = -k * 0.55;
+      p.thL = -0.22 + k * 0.95; p.thR = 0.18 + k * 0.95; // piernas atrás
+      p.shL = 0.35 - k * 0.15; p.shR = 0.3 - k * 0.1;
+      p.uaR = [-1.0 - k * 0.4, 0, 0.5]; p.faR = -2.0 + k * 1.5; // brazos apoyan
+      p.uaL = [-1.1 - k * 0.4, -0.2, -0.5]; p.faL = -2.05 + k * 1.55;
+      p.lean = 0.1; p.headX = -0.2 * k;
+      return p;
+    }
+
+    case "derribo": {
+      const u = cyc(t, 2.2);
+      const drop = u < 0.3 ? easeIn(u / 0.3) : 1;                    // cambio de nivel
+      const lift = u < 0.55 ? 0 : u < 0.8 ? easeOut((u - 0.55) / 0.25) : 1 - easeIn((u - 0.8) / 0.2); // levanta
+      p.bob = -drop * 0.35 + lift * 0.4;
+      p.lean = 0.1 + drop * 0.45 - lift * 0.5;
+      p.uaR = [-1.0 - drop * 0.35, -0.3, 0.15]; p.faR = -2.0 + drop * 0.9;
+      p.uaL = [-1.1 - drop * 0.35, 0.15, -0.15]; p.faL = -2.05 + drop * 0.95;
+      p.thL = -0.22 - drop * 0.35; p.shL = 0.35 + drop * 0.45;
+      p.thR = 0.18 + drop * 0.15; p.shR = 0.3 + drop * 0.35;
+      p.headX = 0.05 - lift * 0.2;
+      return p;
+    }
+
+    /* ───────────── SUELO ───────────── */
+    case "guardia-abajo": {
+      const pinch = Math.sin(t * 1.2) * 0.06;
+      p.hipsX = -1.5; p.bob = -0.82;
+      p.thL = -1.05 - pinch; p.thLY = 0.35; p.shL = 1.45;
+      p.thR = -1.05 + pinch; p.thRY = -0.35; p.shR = 1.45;
+      p.uaR = [-1.05, -0.3, 0.2]; p.faR = -1.7;
+      p.uaL = [-1.05, 0.3, -0.2]; p.faL = -1.7;
+      p.lean = -0.1; p.headX = -0.35;
+      return p;
+    }
+
+    case "guardia-arriba": {
+      const push = Math.max(0, Math.sin(t * 1.5)) * 0.1;
+      p.hipsX = 0.35; p.bob = -0.52;
+      p.thL = 1.3; p.thLY = 0.55; p.shL = 2.1;
+      p.thR = 1.3; p.thRY = -0.55; p.shR = 2.1;
+      p.lean = 0.3 + push; p.twist = 0;
+      p.uaR = [-0.95 - push, -0.25, 0.15]; p.faR = -0.55;
+      p.uaL = [-0.95 - push, 0.25, -0.15]; p.faL = -0.55;
+      p.headX = 0.05;
+      return p;
+    }
+
+    case "montada": {
+      const k = Math.abs(Math.sin(t * 1.3)) * 0.05;
+      p.hipsX = 0.25; p.bob = -0.5 - k;
+      p.thL = 1.45; p.thLY = 0.75; p.shL = 2.0;          // piernas abiertas a horcajadas
+      p.thR = 1.45; p.thRY = -0.75; p.shR = 2.0;
+      p.lean = 0.3; p.twist = 0;
+      p.uaR = [-0.9, -0.2, 0.35]; p.faR = -1.9;
+      p.uaL = [-0.9, 0.2, -0.35]; p.faL = -1.9;
+      p.headX = 0.1;
+      return p;
+    }
+
+    case "ground-pound": {
+      const ph = t * 5;
+      const punchR = Math.max(0, Math.sin(ph));
+      const punchL = Math.max(0, Math.sin(ph + Math.PI));
+      p.hipsX = 0.25; p.bob = -0.5;
+      p.thL = 1.45; p.thLY = 0.75; p.shL = 2.0;
+      p.thR = 1.45; p.thRY = -0.75; p.shR = 2.0;
+      p.lean = 0.35 + Math.max(punchR, punchL) * 0.2;
+      p.twist = (punchR - punchL) * 0.2;
+      p.uaR = [-0.9 - punchR * 0.55, -0.2, 0.35]; p.faR = -1.9 + punchR * 1.2;
+      p.uaL = [-0.9 - punchL * 0.55, 0.2, -0.35]; p.faL = -1.9 + punchL * 1.2;
+      return p;
+    }
+
+    case "sumision": {
+      const buck = Math.max(0, Math.sin(t * 2.2)) * 0.08;
+      p.hipsX = -1.5; p.bob = -0.78 + buck;              // empuje de cadera
+      p.thL = -1.35; p.thLY = 0.4; p.shL = 0.7;          // pierna sobre la "cara"
+      p.thR = -0.95; p.thRY = -0.5; p.shR = 1.3;         // la otra cruza
+      p.uaR = [-1.25, -0.15, 0.15]; p.faR = -1.5;        // tira del brazo
+      p.uaL = [-1.25, 0.15, -0.15]; p.faL = -1.5;
+      p.lean = -0.15 - buck * 0.5; p.headX = -0.3;
+      return p;
+    }
+
+    case "ko-plano": {
+      const k = easeOut(clamp01((t % 3.5) / 0.8));
+      p.hipsX = -1.5 * k; p.bob = -0.82 * k;
+      p.lean = 0.1 - 0.1 * k; p.twist = 0.35 - 0.35 * k;
+      p.uaR = [-1.0 + 0.6 * k, 0, 0.3 + 0.5 * k]; p.faR = -2.0 + 1.6 * k;
+      p.uaL = [-1.1 + 0.7 * k, -0.2, -0.05 - 0.75 * k]; p.faL = -2.05 + 1.65 * k;
+      p.thL = -0.22 + 0.35 * k; p.shL = 0.35 + 0.2 * k;
+      p.thR = 0.18 + 0.2 * k; p.shR = 0.3 + 0.15 * k;
+      p.headX = 0.08 - 0.4 * k;
+      return p;
+    }
+
+    /* ───────────── EXTRA ───────────── */
+    case "celebracion": {
+      const k = Math.abs(Math.sin(t * 4));
+      p.bob = k * 0.12;
+      p.uaR = [-2.7, 0, 0.25]; p.faR = -0.3;
+      p.uaL = [-2.7, 0, -0.25]; p.faL = -0.3;
+      p.lean = -0.1; p.headX = -0.25;
+      p.twist = 0.35 - 0.35;
+      return p;
+    }
+  }
+
+  return p; // id desconocido → guardia MMA
+}
