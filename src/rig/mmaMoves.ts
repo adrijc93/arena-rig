@@ -3,8 +3,8 @@ import type { Pose } from "./poseDriver";
 
 /* ════════════════════════════════════════════════════════════════
    SET MMA — biblioteca procedural de movimientos y posturas.
-   De pie: golpes, patadas, clinch, sprawl, derribo.
-   Suelo: guardias, montada, ground & pound, sumisión, KO.
+   En pie: guardia, puños, patadas, clinch.
+   Suelo: derribos, posiciones, ground & pound, sumisión, KO.
    Cada función devuelve la Pose para un instante t (segundos).
    ════════════════════════════════════════════════════════════════ */
 
@@ -14,30 +14,33 @@ export type MmaMoveId =
   | "low-kick" | "circular" | "frontal" | "rodilla"
   | "clinch" | "sprawl" | "derribo"
   | "guardia-abajo" | "guardia-arriba" | "montada" | "ground-pound" | "sumision"
-  | "ko-plano" | "celebracion";
+  | "ko-plano";
 
-export const MMA_MOVES: { id: MmaMoveId; label: string; grupo: string }[] = [
-  { id: "guardia-mma", label: "Guardia MMA", grupo: "De pie" },
-  { id: "esquiva", label: "Esquiva (slip)", grupo: "De pie" },
-  { id: "jab", label: "Jab", grupo: "Golpes" },
-  { id: "cross", label: "Directo (cross)", grupo: "Golpes" },
-  { id: "hook", label: "Gancho (hook)", grupo: "Golpes" },
-  { id: "uppercut", label: "Uppercut", grupo: "Golpes" },
-  { id: "codo", label: "Codo", grupo: "Golpes" },
-  { id: "low-kick", label: "Low kick", grupo: "Patadas" },
-  { id: "circular", label: "Circular alta", grupo: "Patadas" },
-  { id: "frontal", label: "Frontal (teep)", grupo: "Patadas" },
-  { id: "rodilla", label: "Rodillazo", grupo: "Patadas" },
-  { id: "clinch", label: "Clinch", grupo: "Lucha" },
-  { id: "sprawl", label: "Sprawl", grupo: "Lucha" },
-  { id: "derribo", label: "Derribo (double leg)", grupo: "Lucha" },
-  { id: "guardia-abajo", label: "Guardia (abajo)", grupo: "Suelo" },
-  { id: "guardia-arriba", label: "Guardia (arriba)", grupo: "Suelo" },
-  { id: "montada", label: "Montada", grupo: "Suelo" },
-  { id: "ground-pound", label: "Ground & pound", grupo: "Suelo" },
-  { id: "sumision", label: "Sumisión (armbar)", grupo: "Suelo" },
-  { id: "ko-plano", label: "KO (caída atrás)", grupo: "Suelo" },
-  { id: "celebracion", label: "Celebración", grupo: "Extra" },
+export type MmaSeccion = "pie" | "suelo";
+
+export const MMA_MOVES: { id: MmaMoveId; label: string; seccion: MmaSeccion; grupo: string }[] = [
+  // ─── EN PIE ───
+  { id: "guardia-mma", label: "Guardia MMA", seccion: "pie", grupo: "Guardia" },
+  { id: "esquiva", label: "Esquiva (slip)", seccion: "pie", grupo: "Guardia" },
+  { id: "jab", label: "Jab", seccion: "pie", grupo: "Puños" },
+  { id: "cross", label: "Directo (cross)", seccion: "pie", grupo: "Puños" },
+  { id: "hook", label: "Gancho (hook)", seccion: "pie", grupo: "Puños" },
+  { id: "uppercut", label: "Uppercut", seccion: "pie", grupo: "Puños" },
+  { id: "codo", label: "Codo", seccion: "pie", grupo: "Puños" },
+  { id: "low-kick", label: "Low kick", seccion: "pie", grupo: "Patadas" },
+  { id: "circular", label: "Circular alta", seccion: "pie", grupo: "Patadas" },
+  { id: "frontal", label: "Frontal (teep)", seccion: "pie", grupo: "Patadas" },
+  { id: "rodilla", label: "Rodillazo", seccion: "pie", grupo: "Patadas" },
+  { id: "clinch", label: "Clinch", seccion: "pie", grupo: "Clinch" },
+  // ─── SUELO ───
+  { id: "sprawl", label: "Sprawl (defensa)", seccion: "suelo", grupo: "Derribos" },
+  { id: "derribo", label: "Derribo (double leg)", seccion: "suelo", grupo: "Derribos" },
+  { id: "guardia-abajo", label: "Guardia (abajo)", seccion: "suelo", grupo: "Posiciones" },
+  { id: "guardia-arriba", label: "Guardia (arriba)", seccion: "suelo", grupo: "Posiciones" },
+  { id: "montada", label: "Montada", seccion: "suelo", grupo: "Posiciones" },
+  { id: "ground-pound", label: "Ground & pound", seccion: "suelo", grupo: "Ataque" },
+  { id: "sumision", label: "Sumisión (armbar)", seccion: "suelo", grupo: "Ataque" },
+  { id: "ko-plano", label: "KO (caída atrás)", seccion: "suelo", grupo: "KO" },
 ];
 
 /** Guardia MMA: manos altas, perfil blado, rebote ligero */
@@ -313,16 +316,6 @@ export function mmaPoseFor(id: string, t: number): Pose {
       return p;
     }
 
-    /* ───────────── EXTRA ───────────── */
-    case "celebracion": {
-      const k = Math.abs(Math.sin(t * 4));
-      p.bob = k * 0.12;
-      p.uaR = [-2.7, 0, 0.25]; p.faR = -0.3;
-      p.uaL = [-2.7, 0, -0.25]; p.faL = -0.3;
-      p.lean = -0.1; p.headX = -0.25;
-      p.twist = 0.35 - 0.35;
-      return p;
-    }
   }
 
   return p; // id desconocido → guardia MMA
