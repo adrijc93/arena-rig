@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { applyPose, clonePose, findRig, GUARD, lerpPose } from "./rig/poseDriver";
+import { applyPose, clonePose, findRig, GUARD, lerpPose, mirrorPose } from "./rig/poseDriver";
 import type { Pose, Rig } from "./rig/poseDriver";
+import { bakeClip, sampleBaked } from "./rig/baker";
+import type { BakedClip } from "./rig/baker";
 import { MOVES, poseFor } from "./rig/moves";
 import type { MoveId } from "./rig/moves";
+import { MMA_MOVES, mmaPoseFor } from "./rig/mmaMoves";
 import { MODELS } from "./rig/manifest";
 
 /* ════════════════════════════════════════════════════════════════
@@ -13,27 +16,36 @@ import { MODELS } from "./rig/manifest";
    → elige movimiento. Base compartida de LUDUS y el proyecto MMA.
    ════════════════════════════════════════════════════════════════ */
 
-type Driver = "procedural" | "mocap";
+type Driver = "procedural" | "mocap" | "baked";
 
 interface Loaded {
   rig: Rig | null;
   mixer: THREE.AnimationMixer;
   actions: Record<string, THREE.AnimationAction>;
+  snapshot: Map<THREE.Object3D, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }>;
 }
 
 export default function App() {
   const ref = useRef<HTMLDivElement>(null);
   const q = new URLSearchParams(window.location.search);
   const [modelId, setModelId] = useState(q.get("model") ?? MODELS[0].id);
-  const [driver, setDriver] = useState<Driver>(q.get("driver") === "mocap" ? "mocap" : "procedural");
-  const [move, setMove] = useState<MoveId>((q.get("move") as MoveId) || "guardia");
+  const [driver, setDriver] = useState<Driver>(
+    q.get("driver") === "mocap" ? "mocap" : q.get("driver") === "baked" ? "baked" : "procedural");
+  const [moveSet, setMoveSet] = useState<"base" | "mma">(q.get("set") === "mma" ? "mma" : "base");
+  const [move, setMove] = useState<string>(q.get("move") || "guardia");
   const [clip, setClip] = useState(q.get("clip") ?? "Idle_Loop");
+  const [mirror, setMirror] = useState(q.get("mirror") === "1"); // espejo zurdo (driver horneado)
   const [status, setStatus] = useState("Cargando…");
 
   const modelRef = useRef(modelId); modelRef.current = modelId;
   const driverRef = useRef(driver); driverRef.current = driver;
+  const setRef = useRef(moveSet); setRef.current = moveSet;
   const moveRef = useRef(move); moveRef.current = move;
   const clipRef = useRef(clip); clipRef.current = clip;
+  const mirrorRef = useRef(mirror); mirrorRef.current = mirror;
+  // &t=1.23 congela el reloj procedural · &ry=2.1 anula rotationY (depuración / capturas)
+  const tFreeze = useRef<number | null>(q.get("t") !== null ? parseFloat(q.get("t")!) : null);
+  const ryOverride = useRef<number | null>(q.get("ry") !== null ? parseFloat(q.get("ry")!) : null);
 
   const ficha = MODELS.find((m) => m.id === modelId)!;
 
@@ -80,6 +92,7 @@ export default function App() {
 
     let current: { root: THREE.Object3D; loaded: Loaded; action: THREE.AnimationAction | null; prev: Pose } | null = null;
     let loading = false;
+    const bakedCache = new Map<string, BakedClip>(); // "modelo:clip" → frames horneados
 
     const loadModel = (id: string) => {
       const f = MODELS.find((m) => m.id === id)!;
@@ -104,7 +117,7 @@ export default function App() {
         const s = f.targetHeight / h;
         model.scale.setScalar(s);
         model.position.y = -bbox.min.y * s;
-        model.rotation.y = f.rotationY;
+        model.rotation.y = ryOverride.current ?? f.rotationY;
         model.traverse((o) => {
           o.castShadow = true;
           if ((o as THREE.SkinnedMesh).isSkinnedMesh) o.frustumCulled = false;
@@ -135,7 +148,10 @@ export default function App() {
             saved!.forEach((v, o) => { o.position.copy(v.p); o.scale.copy(v.s); });
             if (rig) rig.hipsBaseY = rig.hips.position.y;
           }
-          current = { root: model, loaded: { rig, mixer, actions }, action: null, prev: clonePose(GUARD) };
+          // foto completa del estado calibrado: el horno vuelve aquí tras muestrear
+          const snapshot = new Map<THREE.Object3D, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }>();
+          model.traverse((o) => snapshot.set(o, { p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }));
+          current = { root: model, loaded: { rig, mixer, actions, snapshot }, action: null, prev: clonePose(GUARD) };
           loading = false;
           setStatus(rig
             ? `${f.autor} — rig "${rig.profile}" detectado (${Object.keys(actions).length} clips)`
@@ -170,7 +186,7 @@ export default function App() {
     const loop = () => {
       try {
         const dt = clock.getDelta();
-        const t = (performance.now() - t0) / 1000;
+        const t = tFreeze.current ?? (performance.now() - t0) / 1000;
         if (current) {
           const { loaded } = current;
           if (driverRef.current === "mocap") {
@@ -181,10 +197,34 @@ export default function App() {
               current.action = want;
             }
             loaded.mixer.update(dt);
+          } else if (driverRef.current === "baked") {
+            if (current.action) { current.action.stop(); current.action = null; }
+            if (loaded.rig) {
+              const key = modelRef.current + ":" + clipRef.current;
+              let bc = bakedCache.get(key);
+              if (!bc && loaded.actions[clipRef.current]) {
+                bc = bakeClip(loaded.rig, loaded.mixer, loaded.actions[clipRef.current], 30, loaded.snapshot);
+                loaded.snapshot.forEach((v, o) => { o.position.copy(v.p); o.quaternion.copy(v.q); o.scale.copy(v.s); });
+                bakedCache.set(key, bc);
+              }
+              if (bc) {
+                let pose = sampleBaked(bc, t);
+                if (mirrorRef.current) pose = mirrorPose(pose);
+                current.prev = tFreeze.current !== null ? pose : lerpPose(current.prev, pose, 0.65);
+                applyPose(loaded.rig, current.prev);
+              }
+            }
           } else {
             if (current.action) { current.action.stop(); current.action = null; }
             if (loaded.rig) {
-              current.prev = lerpPose(current.prev, poseFor(moveRef.current, t), 0.4);
+              let target: Pose;
+              // pose de calibración: brazo derecho al frente — debe apuntar a cámara
+              if (moveRef.current === "test-frente") target = { ...clonePose(GUARD), twist: 0, uaR: [-1.55, 0, 0], faR: -0.05, uaL: [-0.2, 0, -0.1], faL: -0.3 };
+              else target = setRef.current === "mma"
+                ? mmaPoseFor(moveRef.current, t)
+                : poseFor(moveRef.current as MoveId, t);
+              // con reloj congelado (&t=) la pose se aplica directa, sin suavizado
+              current.prev = tFreeze.current !== null ? target : lerpPose(current.prev, target, 0.4);
               applyPose(loaded.rig, current.prev);
             }
           }
@@ -240,29 +280,65 @@ export default function App() {
           <div className="space-y-1">
             <p className="text-[10px] uppercase text-stone-500 font-bold">Driver</p>
             <div className="flex gap-1">
-              {(["procedural", "mocap"] as const).map((d) => (
+              {(["procedural", "mocap", "baked"] as const).map((d) => (
                 <button key={d} onClick={() => setDriver(d)}
                   className={`flex-1 py-1.5 rounded text-[11px] font-bold ${driver === d ? "bg-emerald-500 text-black" : "bg-stone-800"}`}>
-                  {d === "procedural" ? "Nuestro código" : "Clip mocap"}
+                  {d === "procedural" ? "Nuestro código" : d === "mocap" ? "Clip mocap" : "Horneado"}
                 </button>
               ))}
             </div>
             <p className="text-[10px] text-stone-500 leading-snug">
               {driver === "procedural"
                 ? "Cada hueso lo mueve nuestra biblioteca de poses."
-                : "Clip original del pack (referencia de calidad)."}
+                : driver === "mocap"
+                  ? "Clip original del pack (referencia de calidad)."
+                  : "El clip mocap convertido a Poses: pasa por nuestro motor."}
             </p>
+            {driver === "baked" && (
+              <label className="flex items-center gap-1.5 text-[11px] text-stone-300 cursor-pointer">
+                <input type="checkbox" checked={mirror} onChange={(e) => setMirror(e.target.checked)} />
+                Espejo zurdo (mismo clip, guardia cambiada)
+              </label>
+            )}
           </div>
         </div>
 
         {driver === "procedural" ? (
-          <div className="grid grid-cols-3 gap-1">
-            {MOVES.map((m) => (
-              <button key={m.id} onClick={() => setMove(m.id)}
-                className={`py-1.5 rounded text-[11px] font-bold ${move === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
-                {m.label}
-              </button>
-            ))}
+          <div className="space-y-1.5">
+            <div className="flex gap-1">
+              {([["base", "Set Base"], ["mma", "Set MMA 🥊"]] as const).map(([s, l]) => (
+                <button key={s} onClick={() => { setMoveSet(s); setMove(s === "mma" ? "guardia-mma" : "guardia"); }}
+                  className={`flex-1 py-1 rounded text-[11px] font-bold ${moveSet === s ? "bg-sky-500 text-black" : "bg-stone-800"}`}>
+                  {l}
+                </button>
+              ))}
+            </div>
+            {moveSet === "base" ? (
+              <div className="grid grid-cols-3 gap-1">
+                {MOVES.map((m) => (
+                  <button key={m.id} onClick={() => setMove(m.id)}
+                    className={`py-1.5 rounded text-[11px] font-bold ${move === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+                {(Array.from(new Set(MMA_MOVES.map((m) => m.grupo))) as string[]).map((g: string) => (
+                  <div key={g}>
+                    <p className="text-[9px] uppercase text-stone-500 font-bold pb-0.5">{g}</p>
+                    <div className="grid grid-cols-3 gap-1">
+                      {MMA_MOVES.filter((m) => m.grupo === g).map((m) => (
+                        <button key={m.id} onClick={() => setMove(m.id)}
+                          className={`py-1.5 rounded text-[10px] font-bold ${move === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-1 max-h-32 overflow-y-auto">
