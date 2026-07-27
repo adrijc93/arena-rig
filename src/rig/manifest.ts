@@ -13,9 +13,21 @@ export interface ModelFicha {
   calibrateClip?: string;       // clip cuyo primer fotograma define la pose base (brazos abajo)
   clipSource?: string;          // fichero del que tomar los clips (mismo rig, otro archivo)
   clips: string[];              // clips mocap destacados para el lab
+  voxel?: boolean;              // true = marioneta propia generada por código (sin GLTF)
 }
 
 export const MODELS: ModelFicha[] = [
+  {
+    id: "voxel",
+    label: "Muñeco Voxel 🧱 (nuestro)",
+    file: "",
+    autor: "Arena Rig — marioneta propia de 15 piezas",
+    hide: [],
+    targetHeight: 1.7,
+    rotationY: 0,
+    clips: [],
+    voxel: true,
+  },
   {
     id: "quaternius-mannequin",
     label: "Maniquí Quaternius (rig universal)",

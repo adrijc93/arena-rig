@@ -10,6 +10,7 @@ import { MOVES, poseFor } from "./rig/moves";
 import type { MoveId } from "./rig/moves";
 import { MMA_MOVES, mmaPoseFor } from "./rig/mmaMoves";
 import { MODELS } from "./rig/manifest";
+import { buildVoxelPuppet } from "./rig/voxelPuppet";
 
 /* ════════════════════════════════════════════════════════════════
    ARENA RIG LAB — banco de pruebas del motor de animación.
@@ -176,6 +177,32 @@ export default function App() {
       loading = true;
       setStatus(`Cargando ${f.label}…`);
       if (current) { scene.remove(current.root); current = null; }
+      if (f.voxel) {
+        // marioneta propia: 15 bloques rígidos sobre bisagras, sin skinning.
+        // Mismo pipeline que un GLTF: escala a targetHeight, findRig, snapshot.
+        const model = buildVoxelPuppet();
+        model.userData.modelId = id;
+        model.updateMatrixWorld(true);
+        const bbox = new THREE.Box3().setFromObject(model);
+        const h = Math.max(0.001, bbox.max.y - bbox.min.y);
+        const s = f.targetHeight / h;
+        model.scale.setScalar(s);
+        model.position.y = -bbox.min.y * s;
+        model.rotation.y = ryOverride.current ?? f.rotationY;
+        model.traverse((o) => { o.castShadow = true; });
+        scene.add(model);
+        const mixer = new THREE.AnimationMixer(model);
+        const rig = findRig(model);
+        const snapshot = new Map<THREE.Object3D, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }>();
+        model.traverse((o) => snapshot.set(o, { p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }));
+        current = { root: model, loaded: { rig, mixer, actions: {}, snapshot }, action: null, prev: clonePose(GUARD) };
+        loading = false;
+        setClipsAvail([]);
+        setStatus(rig
+          ? `${f.autor} — rig "${rig.profile}" detectado (poses procedurales)`
+          : `${f.autor} — ¡rig NO reconocido!`);
+        return;
+      }
       new GLTFLoader().load(f.file, (gltf) => {
         const model = gltf.scene;
         model.userData.modelId = id;
@@ -386,7 +413,7 @@ export default function App() {
             <p className="text-[10px] uppercase text-stone-500 font-bold">Modelo</p>
             <div className="flex flex-col gap-1">
               {MODELS.map((m) => (
-                <button key={m.id} onClick={() => { setModelId(m.id); setClip(m.clips[0]); setClipsAvail(m.clips); }}
+                <button key={m.id} onClick={() => { setModelId(m.id); if (m.clips.length) { setClip(m.clips[0]); setClipsAvail(m.clips); } }}
                   className={`py-1.5 px-2 rounded text-[11px] font-bold text-left ${modelId === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
                   {m.label}
                 </button>
