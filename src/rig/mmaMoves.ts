@@ -146,19 +146,25 @@ export function mmaPoseFor(id: string, t: number): Pose {
 
     /* ───────────── PATADAS Y RODILLAS ───────────── */
     case "low-kick": {
-      const u = cyc(t, 1.4);
-      let k: number;
-      if (u < 0.35) k = -easeIn(u / 0.35);               // carga atrás
-      else if (u < 0.6) k = -1 + easeOut((u - 0.35) / 0.25) * 2; // látigo
-      else k = 1 - easeIn((u - 0.6) / 0.4);
-      p.thR = 0.18 + k * -1.45;                          // impacto bajo: pierna casi horizontal
-      p.shR = k > 0 ? 0.08 : 0.7;
-      p.bob = -Math.max(0, k) * 0.05;                    // la base cede
-      p.hipsY = Math.max(0, k) * -0.45;
-      p.twist = 0.35 - Math.max(0, k) * 0.55;
-      p.lean = 0.1 - Math.max(0, k) * 0.35;              // se echa atrás al patear
-      p.uaR = [-1.0 + Math.max(0, k) * 0.5, 0, 0.3];     // brazos compensan
-      p.uaL = [-1.1 - Math.max(0, k) * 0.4, -0.2, -0.05];
+      // biomecánica: la fuerza nace del suelo → cadera rota completa (con pivote
+      // del pie de apoyo) → la espinilla llega ÚLTIMA, como látigo, a través del
+      // objetivo. Brazo del lado que patea barre atrás, la contraria hace "long guard".
+      const u = cyc(t, 1.6);
+      const step = u < 0.3 ? easeOut(u / 0.3) : 1;                     // paso fuera + carga
+      const whip = u < 0.3 ? 0 : u < 0.5 ? easeOut((u - 0.3) / 0.2) : 1 - easeIn((u - 0.5) / 0.5);
+      p.tx = step * 0.06;                              // abre la base al entrar
+      p.bob = -step * 0.03 - whip * 0.03;
+      p.thR = 0.18 - whip * 1.35;                      // la espinilla cruza el objetivo
+      p.shR = 0.55 - whip * 0.45;                      // semidoblada → extiende al contacto
+      p.hipsY = -whip * 0.55;                          // rotación completa de cadera
+      p.twist = 0.35 - whip * 0.7;
+      p.lean = 0.1 - whip * 0.3;                       // se echa atrás al patear
+      p.hipsZ = whip * 0.18;                           // cae hacia el lado de apoyo
+      p.ankL = [0, whip * 0.6, 0];                     // ¡pivote del pie de apoyo!
+      p.uaR = [-1.0 + whip * 1.3, 0, 0.3 + whip * 0.3]; // brazo del lado que patea barre atrás
+      p.faR = -2.0 + whip * 1.7;
+      p.uaL = [-1.1 - whip * 0.2, -0.2, -0.05 - whip * 0.3]; // long guard al frente
+      p.faL = -2.05 + whip * 1.6;
       p.thL = -0.22; p.shL = 0.4;
       return p;
     }
@@ -181,14 +187,19 @@ export function mmaPoseFor(id: string, t: number): Pose {
     }
 
     case "frontal": {
-      const u = cyc(t, 1.3);
+      // teep: rodilla al pecho (cámara ~90°), extensión con empuje de cadera,
+      // brazo del lado de la pierna cae atrás, la contraria protege la cara.
+      const u = cyc(t, 1.4);
       const lift = u < 0.35 ? easeOut(u / 0.35) : 1 - easeIn((u - 0.35) / 0.65);
       const push = u > 0.35 && u < 0.55 ? easeOut((u - 0.35) / 0.2) : u >= 0.55 ? 1 - easeIn((u - 0.55) / 0.45) : 0;
-      p.thR = 0.18 - lift * 1.25;
-      p.shR = 1.6 - push * 1.5;                          // recogida → empuje
-      p.lean = 0.1 - push * 0.3;
-      p.uaR = [-1.0 - push * 0.4, 0, 0.3]; p.faR = -2.0 + push * 0.8;
-      p.uaL = [-1.1 - push * 0.4, -0.2, -0.05]; p.faL = -2.05 + push * 0.8;
+      p.thR = 0.18 - lift * 1.35;                        // rodilla al pecho
+      p.shR = 1.7 - push * 1.6;                          // cámara → extensión
+      p.tz = push * 0.08;                                // la cadera empuja al objetivo
+      p.lean = 0.1 - push * 0.25;
+      p.uaR = [-1.0 + push * 1.2, 0, 0.3 + push * 0.3];  // brazo del lado de la pierna atrás
+      p.faR = -2.0 + push * 1.5;
+      p.uaL = [-1.1 - push * 0.15, -0.2, -0.05];         // la contraria arriba protege
+      p.faL = -2.05;
       return p;
     }
 
@@ -230,16 +241,22 @@ export function mmaPoseFor(id: string, t: number): Pose {
     }
 
     case "derribo": {
-      const u = cyc(t, 2.2);
-      const drop = u < 0.3 ? easeIn(u / 0.3) : 1;                    // cambio de nivel
-      const lift = u < 0.55 ? 0 : u < 0.8 ? easeOut((u - 0.55) / 0.25) : 1 - easeIn((u - 0.8) / 0.2); // levanta
-      p.bob = -drop * 0.35 + lift * 0.4;
-      p.lean = 0.1 + drop * 0.45 - lift * 0.5;
-      p.uaR = [-1.0 - drop * 0.35, -0.3, 0.15]; p.faR = -2.0 + drop * 0.9;
-      p.uaL = [-1.1 - drop * 0.35, 0.15, -0.15]; p.faL = -2.05 + drop * 0.95;
-      p.thL = -0.22 - drop * 0.35; p.shL = 0.35 + drop * 0.45;
-      p.thR = 0.18 + drop * 0.15; p.shR = 0.3 + drop * 0.35;
-      p.headX = 0.05 - lift * 0.2;
+      // double leg: cambio de nivel doblando RODILLAS (espalda recta, cabeza
+      // arriba), paso de penetración profundo con rodilla trasera casi al
+      // suelo, y se conduce a través del oponente.
+      const u = cyc(t, 2.4);
+      const drop = u < 0.3 ? easeIn(u / 0.3) : 1;
+      const pen = u < 0.35 ? 0 : u < 0.6 ? easeOut((u - 0.35) / 0.25) : 1;
+      const lift = u < 0.65 ? 0 : u < 0.85 ? easeOut((u - 0.65) / 0.2) : 1 - easeIn((u - 0.85) / 0.15);
+      const k = Math.max(drop, pen);
+      p.bob = -drop * 0.2 - pen * 0.3 + lift * 0.45;
+      p.tz = pen * 0.25;                                 // penetra hacia delante
+      p.lean = 0.1 + drop * 0.15 - lift * 0.3;           // espalda recta, NO doblar cintura
+      p.headX = 0.05 - 0.15 * k;                         // cabeza arriba, mirada al frente
+      p.uaR = [-1.0 + drop * 0.3, -0.3, 0.15]; p.faR = -2.0 + drop * 0.6;
+      p.uaL = [-1.1 + drop * 0.3, 0.15, -0.15]; p.faL = -2.05 + drop * 0.65;
+      p.thL = -0.22 - pen * 0.7; p.shL = 0.35 + pen * 0.6;  // pierna adelantada profunda
+      p.thR = 0.18 + pen * 0.25; p.shR = 0.3 + pen * 1.6;   // rodilla trasera casi al suelo
       return p;
     }
 
