@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { BVHLoader } from "three/examples/jsm/loaders/BVHLoader.js";
 import { applyPose, clonePose, findRig, GUARD, lerpPose, mirrorPose } from "./rig/poseDriver";
 import type { Pose, Rig } from "./rig/poseDriver";
 import { bakeClip, sampleBaked } from "./rig/baker";
@@ -24,6 +25,19 @@ interface Loaded {
   actions: Record<string, THREE.AnimationAction>;
   snapshot: Map<THREE.Object3D, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }>;
 }
+
+/* Mocap real de lucha — dataset CMU (Carnegie Mellon), licencia libre
+   (uso/modificación/redistribución permitidos; no reventa del dato crudo).
+   Se hornean a Poses y se reproducen por nuestro motor (driver "Horneado"). */
+const CMU_CLIPS: { file: string; label: string }[] = [
+  { file: "cmu/13_17.bvh", label: "Boxeo I" },
+  { file: "cmu/14_01.bvh", label: "Boxeo II" },
+  { file: "cmu/14_02.bvh", label: "Boxeo III" },
+  { file: "cmu/76_01.bvh", label: "Puñetazo" },
+  { file: "cmu/74_03.bvh", label: "Patadas" },
+  { file: "cmu/86_01.bvh", label: "Patadas+puños+saltos" },
+  { file: "cmu/02_07.bvh", label: "Espada ⚔ (LUDUS)" },
+];
 
 export default function App() {
   const ref = useRef<HTMLDivElement>(null);
@@ -95,6 +109,34 @@ export default function App() {
     let current: { root: THREE.Object3D; loaded: Loaded; action: THREE.AnimationAction | null; prev: Pose } | null = null;
     let loading = false;
     const bakedCache = new Map<string, BakedClip>(); // "modelo:clip" → frames horneados
+    /* mocap CMU: se carga el BVH, se detecta su rig (rest = pose canónica
+       T-pose del archivo) y se hornea a Poses. SIN snapshot de neutralización:
+       los huesos no mapeados (LHipJoint, Neck1, dedos…) se ABSORBEN en el Δ
+       del padre mapeado → más fidelidad al transferir a nuestro maniquí. */
+    const cmuCache = new Map<string, BakedClip | "loading">(); // "cmu/xx_yy.bvh" → horneado
+    const ensureCmu = (clipId: string) => {
+      if (cmuCache.has(clipId)) return;
+      cmuCache.set(clipId, "loading");
+      setStatus(`Cargando mocap CMU ${clipId.split("/")[1]}…`);
+      new BVHLoader().load("models/" + clipId, (res) => {
+        const root = res.skeleton.bones[0];
+        const rigCmu = findRig(root); // rest = pose canónica (rotaciones en cero)
+        if (!rigCmu) { cmuCache.delete(clipId); setStatus("CMU: rig no reconocido"); return; }
+        const mixerCmu = new THREE.AnimationMixer(root);
+        const action = mixerCmu.clipAction(res.clip);
+        // El OFFSET raíz del BVH es (0,0,0): la base de traslación hay que
+        // medirla en el primer fotograma (cadera a su altura real de pie).
+        action.play(); mixerCmu.update(0);
+        rigCmu.hipsBaseX = root.position.x;
+        rigCmu.hipsBaseY = root.position.y;
+        rigCmu.hipsBaseZ = root.position.z;
+        rigCmu.unit = root.position.y / 1.02;
+        action.stop();
+        const bc = bakeClip(rigCmu, mixerCmu, action, 30);
+        cmuCache.set(clipId, bc);
+        setStatus(`CMU ${clipId.split("/")[1]} horneado: ${bc.frames.length} fotogramas (${((bc.frames.length - 1) / bc.fps).toFixed(1)}s)`);
+      }, undefined, () => { cmuCache.delete(clipId); setStatus("Error cargando " + clipId); });
+    };
 
     const loadModel = (id: string) => {
       const f = MODELS.find((m) => m.id === id)!;
@@ -202,17 +244,29 @@ export default function App() {
           } else if (driverRef.current === "baked") {
             if (current.action) { current.action.stop(); current.action = null; }
             if (loaded.rig) {
-              const key = modelRef.current + ":" + clipRef.current;
-              let bc = bakedCache.get(key);
-              if (!bc && loaded.actions[clipRef.current]) {
-                bc = bakeClip(loaded.rig, loaded.mixer, loaded.actions[clipRef.current], 30, loaded.snapshot);
-                loaded.snapshot.forEach((v, o) => { o.position.copy(v.p); o.quaternion.copy(v.q); o.scale.copy(v.s); });
-                bakedCache.set(key, bc);
+              const clipId = clipRef.current;
+              const isCmu = clipId.startsWith("cmu/");
+              let bc: BakedClip | undefined;
+              if (isCmu) {
+                const e = cmuCache.get(clipId);
+                if (!e) ensureCmu(clipId);
+                else if (e !== "loading") bc = e;
+              } else {
+                const key = modelRef.current + ":" + clipId;
+                bc = bakedCache.get(key);
+                if (!bc && loaded.actions[clipId]) {
+                  bc = bakeClip(loaded.rig, loaded.mixer, loaded.actions[clipId], 30, loaded.snapshot);
+                  loaded.snapshot.forEach((v, o) => { o.position.copy(v.p); o.quaternion.copy(v.q); o.scale.copy(v.s); });
+                  bakedCache.set(key, bc);
+                }
               }
               if (bc) {
                 let pose = sampleBaked(bc, t);
                 if (mirrorRef.current) pose = mirrorPose(pose);
                 current.prev = tFreeze.current !== null ? pose : lerpPose(current.prev, pose, 0.65);
+                // CMU y el rig calibrado comparten referencia "de pie, brazos
+                // abajo" (el cero del BVH NO es T-pose; el bind T-pose sumaba
+                // 90° de error en hombros → brazos en vertical)
                 applyPose(loaded.rig, current.prev);
               }
             }
@@ -343,13 +397,28 @@ export default function App() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-1 max-h-32 overflow-y-auto">
-            {ficha.clips.map((c) => (
-              <button key={c} onClick={() => setClip(c)}
-                className={`py-1.5 rounded text-[10px] font-bold ${clip === c ? "bg-emerald-500 text-black" : "bg-stone-800"}`}>
-                {c}
-              </button>
-            ))}
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-3 gap-1 max-h-32 overflow-y-auto">
+              {ficha.clips.map((c) => (
+                <button key={c} onClick={() => setClip(c)}
+                  className={`py-1.5 rounded text-[10px] font-bold ${clip === c ? "bg-emerald-500 text-black" : "bg-stone-800"}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+            {driver === "baked" && (
+              <div>
+                <p className="text-[9px] uppercase text-stone-500 font-bold pb-0.5">Mocap real · dataset CMU (libre)</p>
+                <div className="grid grid-cols-3 gap-1 max-h-24 overflow-y-auto">
+                  {CMU_CLIPS.map((c) => (
+                    <button key={c.file} onClick={() => setClip(c.file)}
+                      className={`py-1.5 rounded text-[10px] font-bold ${clip === c.file ? "bg-emerald-500 text-black" : "bg-stone-800"}`}>
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

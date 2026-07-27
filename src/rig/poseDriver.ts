@@ -135,6 +135,20 @@ const PROFILES: Record<string, BoneNames> = {
     footL: ["foot_l"], footR: ["foot_r"],
     clavL: ["clavicle_l"], clavR: ["clavicle_r"],
   },
+  // CMU mocap BVH (dataset Carnegie Mellon: Hips/LowerBack/Spine/Spine1).
+  // Va ANTES de mixamo: comparte nombres ("Hips", "Head", "Spine") y así
+  // gana su cadena de 3 eslabones, más rica que la de 1 de mixamo.
+  cmu: {
+    hips: ["Hips"],
+    spineChain: [["LowerBack", "Spine", "Spine1"], ["Spine", "Spine1"]],
+    head: ["Head"],
+    armUpL: ["LeftArm"], armLoL: ["LeftForeArm"],
+    armUpR: ["RightArm"], armLoR: ["RightForeArm"],
+    legUpL: ["LeftUpLeg"], legLoL: ["LeftLeg"],
+    legUpR: ["RightUpLeg"], legLoR: ["RightLeg"],
+    footL: ["LeftFoot"], footR: ["RightFoot"],
+    clavL: ["LeftShoulder"], clavR: ["RightShoulder"],
+  },
   // Mixamo
   mixamo: {
     hips: ["mixamorig:Hips", "mixamorigHips", "Hips"],
@@ -147,7 +161,7 @@ const PROFILES: Record<string, BoneNames> = {
     legUpL: ["mixamorig:LeftUpLeg", "mixamorigLeftUpLeg", "LeftUpLeg"],
     legLoL: ["mixamorig:LeftLeg", "mixamorigLeftLeg", "LeftLeg"],
     legUpR: ["mixamorig:RightUpLeg", "mixamorigRightUpLeg", "RightUpLeg"],
-    legLoR: ["mixamorig:RightLeg", "mixamorigRightLeg", "RightLeg"],
+    legLoL: ["mixamorig:RightLeg", "mixamorigRightLeg", "RightLeg"],
     footL: ["mixamorig:LeftFoot", "mixamorigLeftFoot", "LeftFoot"],
     footR: ["mixamorig:RightFoot", "mixamorigRightFoot", "RightFoot"],
     clavL: ["mixamorig:LeftShoulder", "mixamorigLeftShoulder", "LeftShoulder"],
