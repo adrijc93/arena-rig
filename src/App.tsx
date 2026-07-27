@@ -31,7 +31,9 @@ export default function App() {
   const [modelId, setModelId] = useState(q.get("model") ?? MODELS[0].id);
   const [driver, setDriver] = useState<Driver>(
     q.get("driver") === "mocap" ? "mocap" : q.get("driver") === "baked" ? "baked" : "procedural");
-  const [moveSet, setMoveSet] = useState<"base" | "mma">(q.get("set") === "mma" ? "mma" : "base");
+  const qSet = q.get("set");
+  const [moveSet, setMoveSet] = useState<"comun" | "pie" | "suelo">(
+    qSet === "pie" || qSet === "suelo" ? qSet : qSet === "mma" ? "pie" : "comun");
   const [move, setMove] = useState<string>(q.get("move") || "guardia");
   const [clip, setClip] = useState(q.get("clip") ?? "Idle_Loop");
   const [mirror, setMirror] = useState(q.get("mirror") === "1"); // espejo zurdo (driver horneado)
@@ -220,9 +222,9 @@ export default function App() {
               let target: Pose;
               // pose de calibración: brazo derecho al frente — debe apuntar a cámara
               if (moveRef.current === "test-frente") target = { ...clonePose(GUARD), twist: 0, uaR: [-1.55, 0, 0], faR: -0.05, uaL: [-0.2, 0, -0.1], faL: -0.3 };
-              else target = setRef.current === "mma"
-                ? mmaPoseFor(moveRef.current, t)
-                : poseFor(moveRef.current as MoveId, t);
+              else target = setRef.current === "comun"
+                ? poseFor(moveRef.current as MoveId, t)
+                : mmaPoseFor(moveRef.current, t);
               // con reloj congelado (&t=) la pose se aplica directa, sin suavizado
               current.prev = tFreeze.current !== null ? target : lerpPose(current.prev, target, 0.4);
               applyPose(loaded.rig, current.prev);
@@ -306,14 +308,14 @@ export default function App() {
         {driver === "procedural" ? (
           <div className="space-y-1.5">
             <div className="flex gap-1">
-              {([["base", "Set Base"], ["mma", "Set MMA 🥊"]] as const).map(([s, l]) => (
-                <button key={s} onClick={() => { setMoveSet(s); setMove(s === "mma" ? "guardia-mma" : "guardia"); }}
+              {([["comun", "Común"], ["pie", "MMA · En pie 🥊"], ["suelo", "MMA · Suelo 🤼"]] as const).map(([s, l]) => (
+                <button key={s} onClick={() => { setMoveSet(s); setMove(s === "comun" ? "guardia" : s === "pie" ? "guardia-mma" : "guardia-abajo"); }}
                   className={`flex-1 py-1 rounded text-[11px] font-bold ${moveSet === s ? "bg-sky-500 text-black" : "bg-stone-800"}`}>
                   {l}
                 </button>
               ))}
             </div>
-            {moveSet === "base" ? (
+            {moveSet === "comun" ? (
               <div className="grid grid-cols-3 gap-1">
                 {MOVES.map((m) => (
                   <button key={m.id} onClick={() => setMove(m.id)}
@@ -324,11 +326,11 @@ export default function App() {
               </div>
             ) : (
               <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
-                {(Array.from(new Set(MMA_MOVES.map((m) => m.grupo))) as string[]).map((g: string) => (
+                {(Array.from(new Set(MMA_MOVES.filter((m) => m.seccion === moveSet).map((m) => m.grupo))) as string[]).map((g: string) => (
                   <div key={g}>
                     <p className="text-[9px] uppercase text-stone-500 font-bold pb-0.5">{g}</p>
                     <div className="grid grid-cols-3 gap-1">
-                      {MMA_MOVES.filter((m) => m.grupo === g).map((m) => (
+                      {MMA_MOVES.filter((m) => m.seccion === moveSet && m.grupo === g).map((m) => (
                         <button key={m.id} onClick={() => setMove(m.id)}
                           className={`py-1.5 rounded text-[10px] font-bold ${move === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
                           {m.label}
