@@ -66,7 +66,7 @@ function headMesh(): THREE.Mesh {
   const skin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.9 });
   const face = new THREE.MeshStandardMaterial({ map: faceTexture(), roughness: 0.9 });
   // caras: +x, -x, +y, -y, +z (frontal), -z
-  const m = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.52, 0.52), [skin, skin, skin, skin, face, skin]);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.44, 0.44), [skin, skin, skin, skin, face, skin]);
   m.castShadow = true;
   return m;
 }
@@ -83,10 +83,10 @@ export function buildVoxelPuppet(): THREE.Object3D {
   const spine = joint(hips, "spine", 0, 0.08, 0);
   spine.add(box(0.58, 0.40, 0.32, SHIRT, 0, 0.22, 0));
 
-  // ── cabeza (cubo grande, 1/3 del total: proporción cabezona) ──
+  // ── cabeza (cubo cabezón, pero moderado: ~1/4 del total) ──
   const head = joint(spine, "head", 0, 0.44, 0);
   const hm = headMesh();
-  hm.position.set(0, 0.28, 0);
+  hm.position.set(0, 0.24, 0);
   head.add(hm);
 
   // ── brazos (bisagras en hombro y codo) ───────────────────
