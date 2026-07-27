@@ -51,33 +51,4 @@ export const MODELS: ModelFicha[] = [
       "Zombie_Idle_Loop", "Zombie_Scratch",
     ],
   },
-  {
-    id: "quaternius-mannequin-f",
-    label: "Maniquí femenino (cuerpo F)",
-    file: "./models/Mannequin_F.glb",
-    autor: "Quaternius · UAL2 Female Mannequin · CC0",
-    hide: [],
-    targetHeight: 1.8,
-    rotationY: 0.5,
-    clipSource: "./models/UAL2_Standard.glb",
-    clips: [
-      "Melee_Hook", "Melee_Hook_Rec", "Hit_Knockback",
-      "Sword_Regular_Combo", "Sword_Heavy_Combo", "Sword_Block", "Sword_Dash",
-      "Idle_Shield_Loop", "Shield_Dash", "Slide_Start", "LayToIdle",
-    ],
-  },
-  {
-    id: "kaykit-barbarian",
-    label: "Barbarian (KayKit)",
-    file: "./models/barbarian.glb",
-    autor: "Kay Lousberg · KayKit Adventurers · CC0",
-    hide: ["1H_Axe_Offhand", "Barbarian_Round_Shield", "2H_Axe", "Mug"],
-    targetHeight: 1.85,
-    rotationY: 0.5,
-    clips: [
-      "Idle", "Walking_A", "Running_A",
-      "1H_Melee_Attack_Slice_Diagonal", "1H_Melee_Attack_Chop", "1H_Melee_Attack_Stab",
-      "Block", "Block_Hit", "Hit_A", "Death_A", "Cheer",
-    ],
-  },
 ];
