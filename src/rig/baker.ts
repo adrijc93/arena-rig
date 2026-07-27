@@ -38,6 +38,26 @@ function rd(rig: Rig, bone: THREE.Object3D, dq: THREE.Quaternion): Vec3 {
   return rig.flipZ ? [-_E.x, _E.y, -_E.z] : [_E.x, _E.y, _E.z];
 }
 
+/* Continuidad angular: los euler de setFromQuaternion saltan ±2π entre
+   fotogramas (mismo cuaternión, otra vuelta). Al interpolar eso sería un
+   giro completo de la extremidad en un frame → espasmos en vivo.
+   Se desenrolla cada ángulo contra el fotograma anterior. */
+const TAU = Math.PI * 2;
+const unwrap = (cur: number, prev: number) => cur + Math.round((prev - cur) / TAU) * TAU;
+function unwrapPose(p: Pose, prev: Pose) {
+  const U3 = (v?: Vec3, w?: Vec3): Vec3 | undefined =>
+    v && w ? [unwrap(v[0], w[0]), unwrap(v[1], w[1]), unwrap(v[2], w[2])] : v;
+  p.hipsX = unwrap(p.hipsX, prev.hipsX); p.hipsY = unwrap(p.hipsY, prev.hipsY); p.hipsZ = unwrap(p.hipsZ, prev.hipsZ);
+  p.lean = unwrap(p.lean, prev.lean); p.twist = unwrap(p.twist, prev.twist);
+  p.headX = unwrap(p.headX, prev.headX); p.headY = unwrap(p.headY, prev.headY);
+  p.uaR = U3(p.uaR, prev.uaR)!; p.uaL = U3(p.uaL, prev.uaL)!;
+  p.faR = unwrap(p.faR, prev.faR); p.faL = unwrap(p.faL, prev.faL);
+  p.thL = unwrap(p.thL, prev.thL); p.thLY = unwrap(p.thLY, prev.thLY); p.shL = unwrap(p.shL, prev.shL);
+  p.thR = unwrap(p.thR, prev.thR); p.thRY = unwrap(p.thRY, prev.thRY); p.shR = unwrap(p.shR, prev.shR);
+  p.ankL = U3(p.ankL, prev.ankL); p.ankR = U3(p.ankR, prev.ankR);
+  p.claL = U3(p.claL, prev.claL); p.claR = U3(p.claR, prev.claR);
+}
+
 /** Hornea un clip a `fps` muestras/segundo. Deja el mixer parado al final.
     Si se pasa `snapshot` (estado calibrado), los huesos NO mapeados se
     devuelven a reposo en cada muestra: así el Δ medido se corresponde
@@ -89,9 +109,29 @@ export function bakeClip(
       claL: rig.claL ? rd(rig, rig.claL, dq) : undefined,
       claR: rig.claR ? rd(rig, rig.claR, dq) : undefined,
     });
+    if (frames.length > 1) unwrapPose(frames[frames.length - 1], frames[frames.length - 2]);
   }
   action.stop();
   return { fps, frames };
+}
+
+/** Quita la deriva de desplazamiento (el sujeto recorre metros en clips
+    largos): resta la trayectoria suavizada con media móvil centrada y
+    deja el balanceo local de los pasos. El movimiento queda "en el sitio",
+    listo para bucle y para extracción de movimientos de juego. */
+export function removeDrift(bc: BakedClip, windowSec = 2) {
+  const w = Math.max(1, Math.round(windowSec * bc.fps));
+  const n = bc.frames.length;
+  for (const key of ["tx", "tz"] as const) {
+    const vals = bc.frames.map((f) => f[key] ?? 0);
+    const sm = new Array<number>(n);
+    for (let i = 0; i < n; i++) {
+      let a = 0, c = 0;
+      for (let j = Math.max(0, i - w); j <= Math.min(n - 1, i + w); j++) { a += vals[j]; c++; }
+      sm[i] = a / c;
+    }
+    for (let i = 0; i < n; i++) bc.frames[i][key] = vals[i] - sm[i];
+  }
 }
 
 /** Reproduce un clip horneado en bucle, interpolando entre muestras */

@@ -4,7 +4,7 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { BVHLoader } from "three/examples/jsm/loaders/BVHLoader.js";
 import { applyPose, clonePose, findRig, GUARD, lerpPose, mirrorPose } from "./rig/poseDriver";
 import type { Pose, Rig } from "./rig/poseDriver";
-import { bakeClip, sampleBaked } from "./rig/baker";
+import { bakeClip, removeDrift, sampleBaked } from "./rig/baker";
 import type { BakedClip } from "./rig/baker";
 import { MOVES, poseFor } from "./rig/moves";
 import type { MoveId } from "./rig/moves";
@@ -50,6 +50,9 @@ export default function App() {
     qSet === "pie" || qSet === "suelo" ? qSet : qSet === "mma" ? "pie" : "comun");
   const [move, setMove] = useState<string>(q.get("move") || "guardia");
   const [clip, setClip] = useState(q.get("clip") ?? "Idle_Loop");
+  // clips disponibles: se AUTODESCUBREN del archivo al cargar (así un pack
+  // nuevo, p.ej. UAL Pro, aparece entero sin tocar código)
+  const [clipsAvail, setClipsAvail] = useState<string[]>(() => MODELS.find((m) => m.id === (q.get("model") ?? MODELS[0].id))!.clips);
   const [mirror, setMirror] = useState(q.get("mirror") === "1"); // espejo zurdo (driver horneado)
   const [status, setStatus] = useState("Cargando…");
 
@@ -62,8 +65,7 @@ export default function App() {
   // &t=1.23 congela el reloj procedural · &ry=2.1 anula rotationY (depuración / capturas)
   const tFreeze = useRef<number | null>(q.get("t") !== null ? parseFloat(q.get("t")!) : null);
   const ryOverride = useRef<number | null>(q.get("ry") !== null ? parseFloat(q.get("ry")!) : null);
-
-  const ficha = MODELS.find((m) => m.id === modelId)!;
+  const skelRef = useRef(q.get("skel") === "1"); // &skel=1 muestra el esqueleto BVH crudo
 
   useEffect(() => {
     const el = ref.current!;
@@ -109,11 +111,16 @@ export default function App() {
     let current: { root: THREE.Object3D; loaded: Loaded; action: THREE.AnimationAction | null; prev: Pose } | null = null;
     let loading = false;
     const bakedCache = new Map<string, BakedClip>(); // "modelo:clip" → frames horneados
-    /* mocap CMU: se carga el BVH, se detecta su rig (rest = pose canónica
-       T-pose del archivo) y se hornea a Poses. SIN snapshot de neutralización:
-       los huesos no mapeados (LHipJoint, Neck1, dedos…) se ABSORBEN en el Δ
-       del padre mapeado → más fidelidad al transferir a nuestro maniquí. */
-    const cmuCache = new Map<string, BakedClip | "loading">(); // "cmu/xx_yy.bvh" → horneado
+    /* mocap CMU: se carga el BVH, se detecta su rig y se hornea a Poses con
+       referencia = postura del fotograma 0 (casa con el idle del maniquí).
+       SIN snapshot de neutralización: los huesos no mapeados (LHipJoint,
+       Neck1, dedos…) se ABSORBEN en el Δ del padre mapeado → más fidelidad. */
+    interface CmuEntry {
+      bc: BakedClip;
+      raw: { g: THREE.Group; helper: THREE.SkeletonHelper; mixer: THREE.AnimationMixer; action: THREE.AnimationAction };
+    }
+    const cmuCache = new Map<string, CmuEntry | "loading">(); // "cmu/xx_yy.bvh" → horneado + esqueleto crudo
+    let rawShown: CmuEntry["raw"] | null = null; // esqueleto de referencia visible (&skel=1)
     const ensureCmu = (clipId: string) => {
       if (cmuCache.has(clipId)) return;
       cmuCache.set(clipId, "loading");
@@ -127,13 +134,39 @@ export default function App() {
         // El OFFSET raíz del BVH es (0,0,0): la base de traslación hay que
         // medirla en el primer fotograma (cadera a su altura real de pie).
         action.play(); mixerCmu.update(0);
+        // Referencia de rotación = POSTURA del fotograma 0 (guardia natural
+        // de pie), NO el cero del archivo: así casa con el rest calibrado del
+        // maniquí (idle, piernas abiertas) y no quedan offsets en cadera/piernas.
+        rigCmu.rest.forEach((_, b) => rigCmu.rest.set(b, b.quaternion.clone()));
         rigCmu.hipsBaseX = root.position.x;
         rigCmu.hipsBaseY = root.position.y;
         rigCmu.hipsBaseZ = root.position.z;
         rigCmu.unit = root.position.y / 1.02;
+        // escala del esqueleto de referencia: caja de las posiciones de mundo
+        // de los huesos en el FOTOGRAMA 0 (antes de hornear, que deja el
+        // esqueleto en el último fotograma)
+        root.updateMatrixWorld(true);
+        const bb = new THREE.Box3();
+        root.traverse((o) => bb.expandByPoint(o.getWorldPosition(new THREE.Vector3())));
+        const sh = 1.85 / Math.max(0.01, bb.max.y - bb.min.y);
+        const g = new THREE.Group();
+        g.add(root);
+        g.scale.setScalar(sh);
+        g.position.set(-1.4, -bb.min.y * sh, 0);
         action.stop();
         const bc = bakeClip(rigCmu, mixerCmu, action, 30);
-        cmuCache.set(clipId, bc);
+        removeDrift(bc); // el boxeo recorre metros: lo dejamos en el sitio
+        // referencia visual: el esqueleto BVH crudo a la izquierda (&skel=1),
+        // escalado a la altura del maniquí, con su propio mixer independiente
+        g.visible = false;
+        scene.add(g);
+        // el helper DIBUJA las posiciones de mundo de los huesos: debe colgar
+        // de la escena; si cuelga de g, la transformación de g se aplica 2 veces
+        const helper = new THREE.SkeletonHelper(root);
+        helper.visible = false;
+        scene.add(helper);
+        const rawMixer = new THREE.AnimationMixer(root);
+        cmuCache.set(clipId, { bc, raw: { g, helper, mixer: rawMixer, action: rawMixer.clipAction(res.clip) } });
         setStatus(`CMU ${clipId.split("/")[1]} horneado: ${bc.frames.length} fotogramas (${((bc.frames.length - 1) / bc.fps).toFixed(1)}s)`);
       }, undefined, () => { cmuCache.delete(clipId); setStatus("Error cargando " + clipId); });
     };
@@ -197,6 +230,7 @@ export default function App() {
           model.traverse((o) => snapshot.set(o, { p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }));
           current = { root: model, loaded: { rig, mixer, actions, snapshot }, action: null, prev: clonePose(GUARD) };
           loading = false;
+          setClipsAvail(Object.keys(actions)); // autodescubrir clips del archivo
           setStatus(rig
             ? `${f.autor} — rig "${rig.profile}" detectado (${Object.keys(actions).length} clips)`
             : `${f.autor} — ¡rig NO reconocido! solo clips`);
@@ -233,6 +267,12 @@ export default function App() {
         const t = tFreeze.current ?? (performance.now() - t0) / 1000;
         if (current) {
           const { loaded } = current;
+          // apagar el esqueleto de referencia al salir de CMU/horneado/&skel
+          if (rawShown && (driverRef.current !== "baked" || !skelRef.current || !clipRef.current.startsWith("cmu/"))) {
+            rawShown.g.visible = false;
+            rawShown.helper.visible = false;
+            rawShown = null;
+          }
           if (driverRef.current === "mocap") {
             const want = loaded.actions[clipRef.current];
             if (want && want !== current.action) {
@@ -250,7 +290,27 @@ export default function App() {
               if (isCmu) {
                 const e = cmuCache.get(clipId);
                 if (!e) ensureCmu(clipId);
-                else if (e !== "loading") bc = e;
+                else if (e !== "loading") {
+                  bc = e.bc;
+                  // esqueleto crudo de referencia (&skel=1): verdad absoluta
+                  if (skelRef.current) {
+                    if (rawShown !== e.raw) {
+                      if (rawShown) { rawShown.g.visible = false; rawShown.helper.visible = false; }
+                      rawShown = e.raw;
+                      e.raw.g.visible = true;
+                      e.raw.helper.visible = true;
+                      e.raw.action.reset().play();
+                    }
+                    // con reloj congelado (&t=), el esqueleto se sincroniza al mismo t
+                    if (tFreeze.current !== null) {
+                      e.raw.action.paused = true;
+                      e.raw.action.time = t % e.raw.action.getClip().duration;
+                      e.raw.mixer.update(0);
+                    } else {
+                      e.raw.mixer.update(dt);
+                    }
+                  }
+                }
               } else {
                 const key = modelRef.current + ":" + clipId;
                 bc = bakedCache.get(key);
@@ -326,7 +386,7 @@ export default function App() {
             <p className="text-[10px] uppercase text-stone-500 font-bold">Modelo</p>
             <div className="flex flex-col gap-1">
               {MODELS.map((m) => (
-                <button key={m.id} onClick={() => { setModelId(m.id); setClip(m.clips[0]); }}
+                <button key={m.id} onClick={() => { setModelId(m.id); setClip(m.clips[0]); setClipsAvail(m.clips); }}
                   className={`py-1.5 px-2 rounded text-[11px] font-bold text-left ${modelId === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
                   {m.label}
                 </button>
@@ -399,7 +459,7 @@ export default function App() {
         ) : (
           <div className="space-y-1.5">
             <div className="grid grid-cols-3 gap-1 max-h-32 overflow-y-auto">
-              {ficha.clips.map((c) => (
+              {clipsAvail.map((c) => (
                 <button key={c} onClick={() => setClip(c)}
                   className={`py-1.5 rounded text-[10px] font-bold ${clip === c ? "bg-emerald-500 text-black" : "bg-stone-800"}`}>
                   {c}
