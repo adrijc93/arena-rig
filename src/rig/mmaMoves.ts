@@ -120,9 +120,11 @@ export function mmaPoseFor(id: string, t: number): Pose {
       // carga: el brazo abre fuera (codo alto, puño al lado de la cabeza)…
       // ¡y TAMBIÉN decae!: si no, el ciclo acaba con el brazo abierto
       const load = u < 0.22 ? easeOut(u / 0.22) : u < 0.45 ? 1 : u < 0.68 ? 1 - easeIn((u - 0.45) / 0.23) : 0;
-      // barrido: arco horizontal rápido a través del objetivo, pausa corta
-      // y vuelta — el golpe se cierra pronto y queda un respiro en guardia
-      const s = u < 0.22 ? 0 : u < 0.42 ? easeOut((u - 0.22) / 0.2) : u < 0.52 ? 1 : u < 0.85 ? 1 - easeIn((u - 0.52) / 0.33) : 0;
+      // barrido del BRAZO: va por delante del cuerpo — el puño llega al frente
+      // ANTES de que el giro termine; el cuerpo cierra con el puño ya en el rival
+      const s = u < 0.2 ? 0 : u < 0.38 ? easeOut((u - 0.2) / 0.18) : u < 0.52 ? 1 : u < 0.82 ? 1 - easeIn((u - 0.52) / 0.3) : 0;
+      // giro del CUERPO (hombro/cadera): ligeramente retrasado, cierra el golpe
+      const body = u < 0.24 ? 0 : u < 0.44 ? easeOut((u - 0.24) / 0.2) : u < 0.56 ? 1 : u < 0.88 ? 1 - easeIn((u - 0.56) / 0.32) : 0;
       // El arco horizontal sale del eje Z (codo fuera) + eje Y (barrido
       // alrededor del vertical): con el brazo colgando, Y solo es efectiva
       // después de abrir el brazo con Z (orden de euler XYZ).
@@ -133,10 +135,10 @@ export function mmaPoseFor(id: string, t: number): Pose {
         -0.05 + load * 0.95 - s * 0.55, // codo abre fuera en la carga → cierra al impacto → guardia
       ];
       p.faL = -1.55;                                     // codo a 90° siempre
-      // como en el jab: el hombro izquierdo atraviesa con el arco
-      p.twist = 0.35 - s * 0.55;
-      p.hipsY = -s * 0.15;
-      p.lean = 0.1 + s * 0.1;
+      // como en el jab: el hombro izquierdo atraviesa con el arco (envolvente "body")
+      p.twist = 0.35 - body * 0.55;
+      p.hipsY = -body * 0.15;
+      p.lean = 0.1 + body * 0.1;
       p.bob = -load * 0.03 + s * 0.02;
       p.uaR = [-1.0, 0, 0.3]; p.faR = -2.0;             // la otra protege
       return p;
