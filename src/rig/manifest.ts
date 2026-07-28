@@ -1,66 +1,57 @@
 /* ════════════════════════════════════════════════════════════════
-   Fichas de modelos: añadir un modelo nuevo = añadir una ficha.
+   Personajes: todos son PIELES de la marioneta voxel.
+   Añadir un personaje nuevo = añadir una ficha con su PuppetSpec.
    ════════════════════════════════════════════════════════════════ */
+
+import type { PuppetSpec } from "./voxelPuppet";
 
 export interface ModelFicha {
   id: string;
   label: string;
-  file: string;                 // ruta en public/
-  autor: string;                // crédito / licencia
-  hide: string[];               // nodos a ocultar (armas opcionales, etc.)
+  autor: string;
   targetHeight: number;         // altura final en unidades de mundo
   rotationY: number;            // orientación en el laboratorio
-  calibrateClip?: string;       // clip cuyo primer fotograma define la pose base (brazos abajo)
-  clipSource?: string;          // fichero del que tomar los clips (mismo rig, otro archivo)
-  clips: string[];              // clips mocap destacados para el lab
-  voxel?: boolean;              // true = marioneta propia generada por código (sin GLTF)
+  spec?: PuppetSpec;            // "piel" (colores, piezas, accesorios); vacío = muñeco base
 }
 
 export const MODELS: ModelFicha[] = [
   {
     id: "voxel",
-    label: "Muñeco Voxel 🧱 (nuestro)",
-    file: "",
+    label: "Muñeco Voxel 🧱 (base)",
     autor: "Arena Rig — marioneta propia de 15 piezas",
-    hide: [],
     targetHeight: 1.7,
     rotationY: 0,
-    clips: [],
-    voxel: true,
   },
   {
-    id: "quaternius-mannequin",
-    label: "Maniquí Quaternius (rig universal)",
-    file: "./models/AnimationLibrary_Godot_Standard.gltf",
-    autor: "Quaternius · Universal Animation Library · CC0",
-    hide: [],
-    targetHeight: 1.85,
-    rotationY: 0.5,
-    calibrateClip: "Idle_Loop",
-    clips: [
-      "Idle_Loop", "Walk_Loop", "Jog_Fwd_Loop", "Sprint_Loop",
-      "Punch_Jab", "Punch_Cross", "Punch_Enter",
-      "Hit_Chest", "Hit_Head", "Death01",
-      "Sword_Attack", "Sword_Idle",
-      "Crouch_Idle_Loop", "Roll", "Dance_Loop",
-    ],
+    id: "voxel-ludus",
+    label: "Gladiador LUDUS ⚔",
+    autor: "Arena Rig — piel LUDUS sobre marioneta voxel",
+    targetHeight: 1.7,
+    rotationY: 0,
+    spec: {
+      skin: 0xc9995f,          // piel tostada de arena
+      torso: 0x6e5133,         // subarmalis (prenda acolchada bajo el peto)
+      sleeves: 0xc9995f,       // brazos desnudos
+      pants: 0x5b4a2f,
+      feet: 0x3a3128,          // sandalias
+      helmet: 0xa8893f,        // bronce
+      chestPlate: 0xb5964a,
+      shoulderPads: 0xa8893f,
+      skirt: 0x74562f,         // cuero
+    },
   },
   {
-    id: "quaternius-ual2",
-    label: "Maniquí UAL2 (combos y escudos)",
-    file: "./models/UAL2_Standard.glb",
-    autor: "Quaternius · Universal Animation Library 2 · CC0",
-    hide: [],
-    targetHeight: 1.85,
-    rotationY: 0.5,
-    calibrateClip: "Idle_No_Loop",
-    clips: [
-      "Melee_Hook", "Melee_Hook_Rec", "Hit_Knockback",
-      "Sword_Regular_A", "Sword_Regular_B", "Sword_Regular_C", "Sword_Regular_Combo", "Sword_Heavy_Combo",
-      "Sword_Block", "Sword_Dash",
-      "Idle_Shield_Loop", "Shield_Dash", "Shield_OneShot",
-      "Slide_Start", "Slide_Loop", "LayToIdle", "ClimbUp_1m",
-      "Zombie_Idle_Loop", "Zombie_Scratch",
-    ],
+    id: "voxel-mma",
+    label: "Luchador MMA 🥊",
+    autor: "Arena Rig — piel MMA sobre marioneta voxel",
+    targetHeight: 1.7,
+    rotationY: 0,
+    spec: {
+      torso: 0xd9b98f,         // torso desnudo
+      sleeves: 0xd9b98f,
+      pants: 0xb02a2a,         // shorts rojos
+      feet: 0xd9b98f,          // descalzo
+      gloves: 0x27324a,        // guantes azul noche
+    },
   },
 ];
