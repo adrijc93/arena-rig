@@ -125,26 +125,29 @@ export function mmaPoseFor(id: string, t: number): Pose {
       // golpe: el barrido del brazo y el giro del cuerpo hacia adelante
       // ocurren A LA VEZ (0.30–0.55), pausa corta y vuelta
       const s = u < 0.3 ? 0 : u < 0.55 ? easeOut((u - 0.3) / 0.25) : u < 0.62 ? 1 : u < 0.95 ? 1 - easeIn((u - 0.62) / 0.33) : 0;
+      // follow-through: tras el contacto el puño SIGUE cruzado hacia el lado
+      // contrario (0.55–0.75), acompañando el giro del cuerpo; luego vuelve
+      const carry = u < 0.55 ? 0 : u < 0.75 ? easeOut((u - 0.55) / 0.2) : u < 0.95 ? 1 - easeIn((u - 0.75) / 0.2) : 0;
       // LIMITACIÓN DEL RIG (verificada con sonda en ejecución): el codo
       // flexiona SIEMPRE en el plano sagital del personaje — la componente
       // lateral del antebrazo hereda la del brazo (FA = Rx(fa)·UA). Así que
       // "antebrazo hacia dentro" exige que el BRAZO cruce hacia dentro en el
-      // impacto: UA impacto ≈ (-0.25, 0.05, 0.97) — horizontal, al frente y
-      // ligeramente cruzado; el puño acaba EN el pecho (centro-frontal).
+      // impacto: UA impacto ≈ (-0.60, 0.05, 0.80) — horizontal, al frente y
+      // cruzado: el puño acaba PASADO el centro, hacia el lado contrario.
       // La trayectoria sigue la línea roja: la carga saca el codo fuera y el
-      // golpe barre el puño de fuera → centro, cayendo por encima.
+      // golpe barre el puño de fuera → centro → lado contrario, por encima.
       p.uaL = [
-        -1.1 + load * 0.5 - s * 1.05,   // guardia → sube en la carga → horizontal al frente
-        -s * 0.1,                       // barrido: de fuera AL FRENTE a través del objetivo
-        -0.05 + load * 0.95 - s * 1.15, // codo fuera en la carga → brazo cruza DENTRO al impacto
+        -1.1 + load * 0.5 - s * 1.15 - carry * 0.1,   // guardia → carga → horizontal al frente
+        -s * 0.15,                                    // barrido: de fuera AL FRENTE
+        -0.05 + load * 0.95 - s * 1.55 - carry * 0.25, // codo fuera → cruza DENTRO → lado contrario
       ];
       // codo: doblado como en guardia durante la carga (antebrazo subido
       // fuera) → se extiende por ENCIMA barriendo al frente en el golpe
       p.faL = -2.05 + s * 2.55;
-      // enrosca ATRÁS en la carga → desenrosca ADELANTE golpeando,
-      // hombro izquierdo atravesando A LA VEZ que el brazo barre
-      p.twist = 0.35 + load * 0.35 - s * 0.9;
-      p.hipsY = load * 0.05 - s * 0.2;
+      // enrosca ATRÁS en la carga → desenrosca ADELANTE golpeando, y el
+      // follow-through añade un poco más de giro: el cuerpo acompaña al puño
+      p.twist = 0.35 + load * 0.35 - s * 1.05 - carry * 0.2;
+      p.hipsY = load * 0.05 - s * 0.28 - carry * 0.05;
       p.lean = 0.1 + s * 0.1;
       p.bob = -load * 0.03 + s * 0.02;
       p.uaR = [-1.0, 0, 0.3]; p.faR = -2.0;             // la otra protege
