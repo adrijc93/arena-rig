@@ -22,7 +22,7 @@ export interface FaceSpec {
   mouth?: "sonrisa" | "serio";
   beard?: "none" | "perilla" | "completa" | "stubble";
   beardColor?: number;
-  hair?: "none" | "rapado" | "corto" | "melena" | "cresta";
+  hair?: "none" | "rapado" | "corto" | "melena" | "cresta" | "papakha";
   hairColor?: number;
 }
 
@@ -111,8 +111,13 @@ function faceTexture(skin: number, face?: FaceSpec): THREE.CanvasTexture {
     g.fillRect(46, 82, 6, 6);
     g.fillRect(76, 82, 6, 6);
   }
+  // cejas: línea base siempre (da expresión); "fruncido" las inclina al entrecejo
+  g.fillStyle = "rgba(43,39,36,0.8)";
+  g.fillRect(32, 44, 20, 6);
+  g.fillRect(76, 44, 20, 6);
   // cejas fruncidas: dos bloques inclinados hacia el entrecejo
   if (face?.brows === "fruncido") {
+    g.fillStyle = "#2b2724";
     g.save();
     g.translate(42, 46); g.rotate(0.32); g.fillRect(-15, -4, 30, 8);
     g.restore();
@@ -120,24 +125,30 @@ function faceTexture(skin: number, face?: FaceSpec): THREE.CanvasTexture {
     g.translate(86, 46); g.rotate(-0.32); g.fillRect(-15, -4, 30, 8);
     g.restore();
   }
-  // vello facial
+  // vello facial: GRANDE, que cubra de verdad la mitad inferior de la cara
   const bc = css(face?.beardColor ?? 0x2b2118);
   if (face?.beard === "perilla") {
     g.fillStyle = bc;
-    g.fillRect(54, 100, 20, 18);          // mechón bajo el labio
+    g.fillRect(44, 96, 40, 32);           // mechón ancho: barbilla entera
+    g.fillRect(48, 88, 32, 10);           // bigote unido a la perilla
   } else if (face?.beard === "completa") {
     g.fillStyle = bc;
-    g.fillRect(22, 102, 84, 26);          // mandíbula
-    g.fillRect(20, 62, 12, 44);           // patilla izquierda
-    g.fillRect(96, 62, 12, 44);           // patilla derecha
-    g.fillRect(46, 96, 36, 8);            // bigote
+    g.fillRect(12, 96, 104, 32);          // mandíbula y barbilla: todo el tercio inferior
+    g.fillRect(10, 56, 20, 44);           // patilla izquierda (sube hasta la sien)
+    g.fillRect(98, 56, 20, 44);           // patilla derecha
+    g.fillRect(38, 88, 52, 10);           // bigote ancho (tapa la boca, como en real)
+    // textura: píxeles claros dispersos para que no sea un bloque plano
+    g.fillStyle = "rgba(255,255,255,0.08)";
+    for (const [px, py] of [[20, 104], [34, 118], [52, 106], [70, 120], [88, 108], [102, 118], [16, 70], [106, 76], [46, 92], [78, 92]] as const) {
+      g.fillRect(px, py, 4, 4);
+    }
   } else if (face?.beard === "stubble") {
     // barba incipiente: velo oscuro translúcido en mandíbula y mejillas
-    g.fillStyle = "rgba(35,28,22,0.30)";
-    g.fillRect(22, 100, 84, 28);          // mandíbula
-    g.fillRect(20, 66, 12, 38);           // patilla izquierda
-    g.fillRect(96, 66, 12, 38);           // patilla derecha
-    g.fillRect(46, 96, 36, 7);            // sombra de bigote
+    g.fillStyle = "rgba(35,28,22,0.32)";
+    g.fillRect(14, 94, 100, 34);          // mandíbula
+    g.fillRect(12, 60, 18, 38);           // patilla izquierda
+    g.fillRect(98, 60, 18, 38);           // patilla derecha
+    g.fillRect(42, 88, 44, 8);            // sombra de bigote
   }
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter;
@@ -200,8 +211,13 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
   // pelo: bloques sobre/alrededor de la cabeza (corto, melena o cresta)
   const hair = face?.hair ?? "none";
   const hc = face?.hairColor ?? 0x2b2118;
-  if (hair === "rapado") {
-    // rapado al cero: lámina fina pegada al cráneo (Khabib, Jones, Silva)
+  if (hair === "papakha") {
+    // papakha de lana (el gorro icónico de Khabib): cilindro grueso que
+    // SOBRESALE de la cabeza, color crema — se reconoce al instante
+    head.add(box(hs + 0.10, 0.15, hs + 0.10, hc, 0, top + 0.065, -0.01));
+    head.add(box(hs + 0.06, 0.05, hs + 0.06, hc, 0, top - 0.01, -0.01)); // borde bajo
+  } else if (hair === "rapado") {
+    // rapado al cero: lámina fina pegada al cráneo (Jones, Silva)
     head.add(box(hs + 0.005, 0.03, hs + 0.005, hc, 0, top + 0.008, -0.005));
   } else if (hair === "corto") {
     head.add(box(hs + 0.02, 0.09, hs + 0.02, hc, 0, top + 0.03, -0.01));
@@ -266,9 +282,9 @@ export const FACE_PRESETS: FacePreset[] = [
   { id: "veterano", label: "🧓 Veterano", face: { hair: "corto", hairColor: 0x9a938c, beard: "completa", beardColor: 0x8a837c } },
   // ── inspirados en leyendas de UFC ──
   { id: "aguila", label: "🦅 El Águila", skin: 0xc89878,
-    face: { hair: "rapado", hairColor: 0x1a1512, beard: "completa", beardColor: 0x1a1512, brows: "fruncido", mouth: "serio" } },
+    face: { hair: "papakha", hairColor: 0xe8dcc0, beard: "completa", beardColor: 0x14100c, brows: "fruncido", mouth: "serio" } },
   { id: "notorio", label: "☘️ El Notorio", skin: 0xdbb48a,
-    face: { hair: "corto", hairColor: 0x7a5230, beard: "completa", beardColor: 0x7a5230, brows: "fruncido", mouth: "serio" } },
+    face: { hair: "corto", hairColor: 0x8a5c34, beard: "completa", beardColor: 0x8a5c34, brows: "fruncido", mouth: "serio" } },
   { id: "huesos", label: "🦴 Huesos", skin: 0x8a5f45,
     face: { hair: "rapado", hairColor: 0x17110d, mouth: "serio" } },
   { id: "arana", label: "🕷️ La Araña", skin: 0x7a5138,
