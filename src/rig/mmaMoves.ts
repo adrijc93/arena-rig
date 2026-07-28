@@ -168,8 +168,10 @@ export function mmaPoseFor(id: string, t: number): Pose {
       const up = u < 0.3 ? 0 : u < 0.55 ? easeOut((u - 0.3) / 0.25) : 1 - easeIn((u - 0.55) / 0.45);
       p.bob = -dip * 0.09 + up * 0.1;
       p.lean = 0.1 + dip * 0.25 - up * 0.15;
-      p.uaR = [-1.0 + dip * 0.5 - up * 0.85, 0, 0.25];
-      p.faR = -2.0 + up * 0.3;                          // sube con el codo cerrado
+      p.uaR = [-1.0 + dip * 0.5 - up * 0.95, 0, 0.25];
+      // el codo abre más en el impacto: el puño llega MÁS LEJOS del cuerpo
+      // (~0.48 delante del hombro, como el hook) en lugar de subir pegado
+      p.faR = -2.0 + up * 0.8;
       // como en el cross: cadera y hombro derecho impulsan hacia arriba/adelante
       p.twist = 0.35 + up * 0.4;
       p.hipsY = up * 0.12;

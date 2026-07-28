@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { applyPose, clonePose, findRig, GUARD, lerpPose } from "./rig/poseDriver";
+import { resolvePuppetCollisions } from "./rig/collision";
 import type { Pose, Rig } from "./rig/poseDriver";
 import { MOVES, poseFor } from "./rig/moves";
 import type { MoveId } from "./rig/moves";
@@ -37,6 +38,8 @@ export default function App() {
   // &t=1.23 congela el reloj procedural · &ry=2.1 anula rotationY (depuración / capturas)
   const tFreeze = useRef<number | null>(q.get("t") !== null ? parseFloat(q.get("t")!) : null);
   const ryOverride = useRef<number | null>(q.get("ry") !== null ? parseFloat(q.get("ry")!) : null);
+  // &collide=0 desactiva el detector de colisiones (comparar antes/después)
+  const collideOn = useRef(q.get("collide") !== "0");
 
   useEffect(() => {
     const el = ref.current!;
@@ -137,6 +140,8 @@ export default function App() {
           // con reloj congelado (&t=) la pose se aplica directa, sin suavizado
           current.prev = tFreeze.current !== null ? target : lerpPose(current.prev, target, 0.4);
           applyPose(current.loaded.rig, current.prev);
+          // detector de colisiones: las extremidades no atraviesan el cuerpo
+          if (collideOn.current) resolvePuppetCollisions(current.root, 2);
         }
         renderer.render(scene, camera);
       } catch (err) {
