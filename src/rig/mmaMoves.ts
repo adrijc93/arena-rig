@@ -255,7 +255,9 @@ export function mmaPoseFor(id: string, t: number): Pose {
       // queda horizontal DURANTE TODO el golpe, barriendo fuera → centro →
       // lado contrario, con ~25–45° de quiebro visible en el codo.
       p.uaL = [
-        -1.1 + load * 0.5 - s * 0.15 - carry * 0.05,  // guardia → carga → diagonal abajo-dentro
+        -1.1 + load * 0.25 - s * 0.35 - carry * 0.05, // carga BAJA → sube: el barrido
+                                                      // llega a la CABEZA (codo a la altura
+                                                      // del hombro, no al pecho)
         -0.2 + load * 0.2,                            // el brazo pasa por el frente
         -0.05 + load * 0.95 - s * 1.65 - carry * 0.25, // codo fuera → cruza DENTRO → lado contrario
       ];
@@ -448,7 +450,7 @@ export function mmaPoseFor(id: string, t: number): Pose {
 
     case "patada-cuerpo": {
       // roundhouse al CUERPO (hígado/costillas): misma cadena cinética que la
-      // low kick corregida (cadera lidera, hombros acompañan con retraso) pero
+      // low kick corregida (cadera lidera, hombres acompañan con retraso) pero
       // la espinilla llega ALTA, envolviendo el costado.
       const u = cyc(t, 1.6);
       const step = u < 0.3 ? easeOut(u / 0.3) : 1;
