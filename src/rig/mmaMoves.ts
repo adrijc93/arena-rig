@@ -134,7 +134,9 @@ export function mmaPoseFor(id: string, t: number): Pose {
         -s * 1.1,                       // barrido a TRAVÉS del objetivo
         -0.05 + load * 0.95 - s * 0.55, // codo abre fuera en la carga → cierra al impacto → guardia
       ];
-      p.faL = -1.55;                                     // codo a 90° siempre
+      // codo cerrado y antebrazo hacia DENTRO: con el brazo abierto y barriendo,
+      // la flexión en -x abriría el antebrazo hacia FUERA; en +x cierra al centro
+      p.faL = 1.35;
       // enrosca ATRÁS en la carga → desenrosca ADELANTE golpeando,
       // hombro izquierdo atravesando A LA VEZ que el brazo barre
       p.twist = 0.35 + load * 0.35 - s * 0.9;
