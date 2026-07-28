@@ -425,10 +425,13 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.lean = 0.1 - whip * 0.3;                       // se echa atrás al patear
       p.hipsZ = whip * 0.18;                           // cae hacia el lado de apoyo
       p.ankL = [0, whip * 0.6, 0];                     // ¡pivote del pie de apoyo!
-      p.uaR = [-1.0 + whip * 1.3, 0, 0.3 + whip * 0.3]; // brazo del lado que patea barre atrás
-      p.faR = -2.0 + whip * 1.7;
-      p.uaL = [-1.1 - whip * 0.2, -0.2, -0.05 - whip * 0.3]; // long guard al frente
-      p.faL = -2.05 + whip * 1.6;
+      // brazos: el del lado que patea barre atrás-abajo por FUERA de la cadera
+      // (z NEGATIVA = hacia fuera); la contraria hace long guard HORIZONTAL
+      // y extendida a la altura del hombro, ligeramente abierta
+      p.uaR = [-1.0 + whip * 1.1, 0, 0.3 - whip * 0.5];
+      p.faR = -2.0 + whip * 1.4;
+      p.uaL = [-1.1 - whip * 0.45, -0.2 + whip * 0.1, -0.05 + whip * 0.3];
+      p.faL = -2.05 + whip * 1.75;
       p.thL = -0.22; p.shL = 0.4;
       return p;
     }
@@ -450,10 +453,11 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.lean = 0.1 - whip * 0.25;
       p.hipsZ = whip * 0.12;
       p.ankL = [0, whip * 0.6, 0];                     // pivote del pie de apoyo
-      p.uaR = [-1.0 + whip * 1.2, 0, 0.3 + whip * 0.3]; // brazo del lado que patea barre atrás
-      p.faR = -2.0 + whip * 1.7;
-      p.uaL = [-1.1 - whip * 0.2, -0.2, -0.05 - whip * 0.3]; // long guard
-      p.faL = -2.05 + whip * 1.6;
+      // mismo esquema de brazos que la low kick: barre fuera + long guard tensa
+      p.uaR = [-1.0 + whip * 1.1, 0, 0.3 - whip * 0.5];
+      p.faR = -2.0 + whip * 1.4;
+      p.uaL = [-1.1 - whip * 0.45, -0.2 + whip * 0.1, -0.05 + whip * 0.3];
+      p.faL = -2.05 + whip * 1.75;
       p.thL = -0.22; p.shL = 0.4;
       return p;
     }
@@ -471,8 +475,11 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.twist = 0.35 - Math.abs(k) * 0.4;              // hombros: cargan atrás y ACOMPAÑAN
                                                        // con retraso (la cadera lidera), como la low kick
       p.lean = 0.1 - Math.max(0, k) * 0.4;
-      p.uaR = [-0.6, 0, 0.8]; p.faR = -1.2;
-      p.uaL = [-1.1, -0.2, -0.05]; p.faL = -2.0;
+      // brazos como la low kick: el derecho barre atrás por FUERA, la
+      // izquierda hace long guard horizontal (antes quedaban abrazados al pecho)
+      const kk = Math.max(0, k);
+      p.uaR = [-1.0 + kk * 1.1, 0, 0.3 - kk * 0.5]; p.faR = -2.0 + kk * 1.4;
+      p.uaL = [-1.1 - kk * 0.45, -0.2 + kk * 0.1, -0.05 + kk * 0.3]; p.faL = -2.05 + kk * 1.75;
       return p;
     }
 
@@ -486,8 +493,8 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.shR = 1.7 - push * 1.6;                          // cámara → extensión
       p.tz = push * 0.08;                                // la cadera empuja al objetivo
       p.lean = 0.1 - push * 0.25;
-      p.uaR = [-1.0 + push * 1.2, 0, 0.3 + push * 0.3];  // brazo del lado de la pierna atrás
-      p.faR = -2.0 + push * 1.5;
+      p.uaR = [-1.0 + push * 1.1, 0, 0.3 - push * 0.5];  // brazo del lado de la pierna atrás por FUERA
+      p.faR = -2.0 + push * 1.4;
       p.uaL = [-1.1 - push * 0.15, -0.2, -0.05];         // la contraria arriba protege
       p.faL = -2.05;
       return p;
@@ -508,8 +515,8 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.lean = 0.1 - ext * 0.35;                       // se echa atrás al extender
       p.hipsZ = ch * 0.1;
       p.bob = -ch * 0.03 + ext * 0.02;
-      p.uaR = [-1.0 + ext * 0.8, 0, 0.3 + ext * 0.2];  // brazo derecho cae atrás (equilibrio)
-      p.faR = -2.0 + ext * 1.2;
+      p.uaR = [-1.0 + ext * 1.1, 0, 0.3 - ext * 0.5];  // brazo derecho cae atrás por FUERA (equilibrio)
+      p.faR = -2.0 + ext * 1.4;
       p.uaL = [-1.1, -0.2, -0.05]; p.faL = -2.05;      // la otra protege
       p.thL = -0.22; p.shL = 0.35;
       return p;
@@ -533,10 +540,12 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.lean = 0.1 - kick * 0.2;
       p.hipsZ = -kick * 0.1;
       p.ankR = [0, -kick * 0.5, 0];                       // pivota el nuevo pie de apoyo
-      p.uaL = [-1.1 + kick * 1.1, -0.2, -0.05 - kick * 0.3]; // brazo izquierdo barre atrás
-      p.faL = -2.05 + kick * 1.6;
-      p.uaR = [-1.0 - kick * 0.2, 0, 0.3 + kick * 0.3];   // long guard derecha
-      p.faR = -2.0 + kick * 1.5;
+      // espejo de la low kick: el izquierdo barre atrás por FUERA (z positiva
+      // = hacia fuera para el brazo izquierdo) y la derecha hace long guard
+      p.uaL = [-1.1 + kick * 1.1, -0.2, -0.05 + kick * 0.35];
+      p.faL = -2.05 + kick * 1.45;
+      p.uaR = [-1.0 - kick * 0.5, 0, 0.3 - kick * 0.15];
+      p.faR = -2.0 + kick * 1.7;
       return p;
     }
 
@@ -547,8 +556,10 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.shR = 0.3 + k * 1.7;                             // pierna recogida fuerte
       p.bob = k * 0.12;                                  // salto al impacto
       p.lean = 0.1 + k * 0.15;
-      p.uaR = [-1.0 + k * 1.2, 0, 0.3]; p.faR = -2.0;    // tira del "cuello"
-      p.uaL = [-1.1 + k * 1.2, -0.2, -0.05]; p.faL = -2.05;
+      // los brazos TIRAN hacia abajo del "cuello": los guantes acaban delante
+      // del esternón con el codo doblado, no colgando a los lados
+      p.uaR = [-1.0 + k * 0.15, 0, 0.3 - k * 0.1]; p.faR = -2.0 + k * 0.5;
+      p.uaL = [-1.1 + k * 0.15, -0.2, -0.05 + k * 0.1]; p.faL = -2.05 + k * 0.55;
       return p;
     }
 
@@ -568,7 +579,7 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.shL = 0.35 + fly * 0.4;
       p.lean = 0.1 - fly * 0.05;                           // torso erguido, la cadera empuja al frente
       p.hipsY = fly * 0.15;
-      p.uaR = [-1.0 + fly * 1.3, 0, 0.3 + fly * 0.2]; p.faR = -2.0 + fly * 0.6; // tira atrás-abajo
+      p.uaR = [-1.0 + fly * 1.3, 0, 0.3 - fly * 0.5]; p.faR = -2.0 + fly * 0.9; // tira atrás-abajo por FUERA
       p.uaL = [-1.1 + fly * 0.6, -0.2, -0.05]; p.faL = -2.05; // la otra queda alta
       return p;
     }
