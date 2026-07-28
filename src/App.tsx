@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { applyPose, clonePose, findRig, GUARD, lerpPose } from "./rig/poseDriver";
-import { resolvePuppetCollisions } from "./rig/collision";
+import { resolvePoseCollisions } from "./rig/collision";
 import type { Pose, Rig } from "./rig/poseDriver";
 import { MOVES, poseFor } from "./rig/moves";
 import type { MoveId } from "./rig/moves";
@@ -137,11 +137,12 @@ export default function App() {
           else target = setRef.current === "comun"
             ? poseFor(moveRef.current as MoveId, t)
             : mmaPoseFor(moveRef.current, t);
+          // detector de colisiones EN ESPACIO DE POSE: corrige los ángulos
+          // de la pose objetivo antes del lerp → determinista, sin parpadeo
+          if (collideOn.current) target = resolvePoseCollisions(target);
           // con reloj congelado (&t=) la pose se aplica directa, sin suavizado
           current.prev = tFreeze.current !== null ? target : lerpPose(current.prev, target, 0.4);
           applyPose(current.loaded.rig, current.prev);
-          // detector de colisiones: las extremidades no atraviesan el cuerpo
-          if (collideOn.current) resolvePuppetCollisions(current.root, 2);
         }
         renderer.render(scene, camera);
       } catch (err) {
