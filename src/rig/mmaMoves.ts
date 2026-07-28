@@ -142,9 +142,13 @@ export function mmaPoseFor(id: string, t: number): Pose {
         -0.05 + load * 0.95 - s * 1.55 - carry * 0.25, // codo fuera → cruza DENTRO → lado contrario
       ];
       // codo: doblado como en guardia durante la carga (antebrazo subido
-      // fuera) → se extiende por ENCIMA barriendo al frente, PERO sin estirar
-      // del todo: en el impacto queda ~45° entre brazo y antebrazo (fa ≈ +0.9)
-      p.faL = -2.05 + s * 2.95;
+      // fuera) → se abre por ENCIMA barriendo al frente, PERO sin estirarse
+      // del todo: la flexión (~45° brazo-antebrazo) se MANTIENE durante todo
+      // el golpe Y el follow-through (bend llega rápido y aguanta; carry
+      // añade un extra porque con el brazo muy cruzado hace falta más fa).
+      // Solo se suelta al final, cuando el brazo ya está de vuelta.
+      const bend = Math.min(1, s * 3);
+      p.faL = -2.05 + bend * 2.95 + carry * 0.4;
       // enrosca ATRÁS en la carga → desenrosca ADELANTE golpeando, y el
       // follow-through añade un poco más de giro: el cuerpo acompaña al puño
       p.twist = 0.35 + load * 0.35 - s * 1.05 - carry * 0.2;
