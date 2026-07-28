@@ -1,16 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { applyPose, clonePose, findRig, GUARD, lerpPose } from "./rig/poseDriver";
+import { applyPose, clonePose, findRig, GUARD, lerpPose, rotBone } from "./rig/poseDriver";
 import { resolvePoseCollisions } from "./rig/collision";
 import type { Pose, Rig } from "./rig/poseDriver";
 import { MOVES, poseFor } from "./rig/moves";
 import type { MoveId } from "./rig/moves";
 import { MMA_MOVES, mmaPoseFor } from "./rig/mmaMoves";
 import { MODELS } from "./rig/manifest";
-import { buildVoxelPuppet } from "./rig/voxelPuppet";
+import { buildVoxelPuppet, FACE_PRESETS } from "./rig/voxelPuppet";
 import type { PuppetSpec } from "./rig/voxelPuppet";
 import { DUO, DUO_DEFAULT } from "./rig/duo";
+
+/* Puntería: qué brazo golpea y a qué altura apunta (cabeza o cuerpo).
+   Se aplica en modo duelo a quien ATACA (tú o el rival según el movimiento). */
+const AIM: Record<string, { side: "L" | "R"; lvl: "head" | "body" }> = {
+  jab: { side: "L", lvl: "head" },
+  hook: { side: "L", lvl: "head" },
+  backfist: { side: "L", lvl: "head" },
+  "gancho-cuerpo": { side: "L", lvl: "body" },
+  cross: { side: "R", lvl: "head" },
+  uppercut: { side: "R", lvl: "head" },
+  overhand: { side: "R", lvl: "head" },
+  superman: { side: "R", lvl: "head" },
+  codo: { side: "R", lvl: "head" },
+  "codo-giro": { side: "R", lvl: "head" },
+};
 
 /* ════════════════════════════════════════════════════════════════
    ARENA RIG LAB — banco de pruebas del motor de animación.
@@ -55,12 +70,14 @@ export default function App() {
     qSet === "pie" || qSet === "suelo" ? qSet : qSet === "mma" ? "pie" : "comun");
   const [move, setMove] = useState<string>(q.get("move") || "guardia");
   const [duo, setDuo] = useState(q.get("duo") === "1");
+  const [faceId, setFaceId] = useState(q.get("cara") ?? "base");
   const [status, setStatus] = useState("Cargando…");
 
   const modelRef = useRef(modelId); modelRef.current = modelId;
   const setRef = useRef(moveSet); setRef.current = moveSet;
   const moveRef = useRef(move); moveRef.current = move;
   const duoRef = useRef(duo); duoRef.current = duo;
+  const faceRef = useRef(faceId); faceRef.current = faceId;
   // &t=1.23 congela el reloj procedural · &ry=2.1: en solitario anula
   // rotationY del modelo; en duelo fija el acimut de la cámara (capturas)
   const tFreeze = useRef<number | null>(q.get("t") !== null ? parseFloat(q.get("t")!) : null);
@@ -150,11 +167,15 @@ export default function App() {
       if (rival) { scene.remove(rival.root); rival = null; }
       // marioneta propia: 15 bloques rígidos sobre bisagras, sin skinning.
       // La ficha solo aporta la piel (spec); rig y animaciones son comunes.
-      attacker = buildFighter(id);
+      const fp = FACE_PRESETS.find((x) => x.id === faceRef.current) ?? FACE_PRESETS[0];
+      attacker = buildFighter(id, { ...f.spec, face: fp.face });
       attacker.root.userData.modelId = id;
+      attacker.root.userData.faceId = faceRef.current;
       duoActive = duoRef.current;
       if (duoActive) {
-        rival = buildFighter(id, rivalSpec(f.spec));
+        const rs = rivalSpec(f.spec);
+        rs.face = { brows: "fruncido", hair: "corto", hairColor: 0x1a1512 }; // rival: cara de duro
+        rival = buildFighter(id, rs);
         // en duelo la cámara nace en esquina: se ven los dos perfiles
         camera.position.set(3.4, 1.9, 3.6);
         controls.target.set(0, 0.8, 0);
@@ -170,9 +191,36 @@ export default function App() {
     };
 
     loadModel(modelRef.current);
+    // puntería: dirige el brazo golpeador hacia la CABEZA o el CUERPO del
+    // rival. Se funde según lo extendido que esté el codo: en guardia no
+    // manda, con el brazo estirado apunta de verdad al objetivo.
+    const vA = new THREE.Vector3(), vB = new THREE.Vector3(), qA = new THREE.Quaternion();
+    const aimArm = (f: Fighter, side: "L" | "R", lvl: "head" | "body", tgt: Fighter) => {
+      const rig = f.loaded.rig!, rigT = tgt.loaded.rig!;
+      const ua = side === "L" ? rig.armUpL : rig.armUpR;
+      const joint = lvl === "head" ? rigT.head : rigT.spine[rigT.spine.length - 1];
+      joint.getWorldPosition(vA);
+      if (lvl === "head") vA.y += 0.22 * tgt.root.scale.x;
+      ua.getWorldPosition(vB);
+      vA.sub(vB).normalize();
+      rig.charRoot.getWorldQuaternion(qA).invert();
+      vA.applyQuaternion(qA);                       // dirección deseada en espacio charRoot
+      const ax = Math.atan2(-vA.z, -vA.y);          // euler XYZ que apunta esa dirección
+      const az = Math.asin(Math.max(-1, Math.min(1, vA.x)));
+      const uaPose = side === "L" ? f.prev.uaL : f.prev.uaR;
+      const fa = side === "L" ? f.prev.faL : f.prev.faR;
+      const blend = Math.max(0, Math.min(1, 1 - Math.abs(fa) / 1.9)) * 0.9;
+      if (blend < 0.05) return;
+      rotBone(rig, ua,
+        uaPose[0] + (ax - uaPose[0]) * blend,
+        uaPose[1],
+        uaPose[2] + (az - uaPose[2]) * blend);
+    };
+
     const watcher = setInterval(() => {
       if (loading || !attacker) return;
-      if (attacker.root.userData.modelId !== modelRef.current || duoActive !== duoRef.current) {
+      if (attacker.root.userData.modelId !== modelRef.current || duoActive !== duoRef.current
+        || attacker.root.userData.faceId !== faceRef.current) {
         loadModel(modelRef.current);
       }
     }, 200);
@@ -202,6 +250,17 @@ export default function App() {
 
           // ─── disposición de escena ───
           const cfg = DUO[moveRef.current] ?? DUO_DEFAULT;
+
+          // reacción del rival (pose): reloj escalado pD/pA para ir A LA PAR
+          if (rival && rival.loaded.rig) {
+            const pA = cfg.pA ?? 0, pD = cfg.pD ?? 0;
+            const tB = pA > 0 && pD > 0 ? t * (pD / pA) : t;
+            let targetB = setRef.current === "comun" ? mmaPoseFor("guardia-mma", t) : mmaPoseFor(cfg.def, tB);
+            if (collideOn.current) targetB = resolvePoseCollisions(targetB);
+            rival.prev = tFreeze.current !== null ? targetB : lerpPose(rival.prev, targetB, 0.4);
+            applyPose(rival.loaded.rig, rival.prev);
+          }
+
           if (rival) {
             const mode = cfg.mode ?? "face";
             if (mode === "face") {
@@ -224,14 +283,14 @@ export default function App() {
               rival.root.rotation.y = 0;
             }
 
-            // reacción del rival: reloj escalado pD/pA para ir A LA PAR
-            if (rival.loaded.rig) {
-              const pA = cfg.pA ?? 0, pD = cfg.pD ?? 0;
-              const tB = pA > 0 && pD > 0 ? t * (pD / pA) : t;
-              let targetB = setRef.current === "comun" ? mmaPoseFor("guardia-mma", t) : mmaPoseFor(cfg.def, tB);
-              if (collideOn.current) targetB = resolvePoseCollisions(targetB);
-              rival.prev = tFreeze.current !== null ? targetB : lerpPose(rival.prev, targetB, 0.4);
-              applyPose(rival.loaded.rig, rival.prev);
+            // ─── puntería: los golpes buscan la cabeza/cuerpo del rival ───
+            attacker.root.updateMatrixWorld(true);
+            rival.root.updateMatrixWorld(true);
+            const a = AIM[moveRef.current];
+            if (a) aimArm(attacker, a.side, a.lvl, rival);
+            else {
+              const b = setRef.current === "comun" ? undefined : AIM[cfg.def];
+              if (b) aimArm(rival, b.side, b.lvl, attacker);
             }
           } else {
             attacker.root.position.set(0, attacker.baseY, 0);
@@ -297,6 +356,18 @@ export default function App() {
               <button key={m.id} onClick={() => setModelId(m.id)}
                 className={`py-1.5 px-2 rounded text-[11px] font-bold text-left ${modelId === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
                 {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase text-stone-500 font-bold">Cara</p>
+          <div className="grid grid-cols-4 gap-1">
+            {FACE_PRESETS.map((fp) => (
+              <button key={fp.id} onClick={() => setFaceId(fp.id)}
+                className={`py-1 rounded text-[10px] font-bold ${faceId === fp.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
+                {fp.label}
               </button>
             ))}
           </div>
