@@ -91,6 +91,16 @@ function faceTexture(skin: number, face?: FaceSpec): THREE.CanvasTexture {
   g.fillRect(58, 60, 12, 22);
   g.fillStyle = "rgba(255,255,255,0.10)";
   g.fillRect(58, 60, 4, 18);               // brillo del puente
+  // modelado del rostro: frente, pómulos y surco nasolabial
+  g.fillStyle = "rgba(30,20,15,0.06)";
+  g.fillRect(20, 8, 88, 30);               // frente (sutil)
+  g.fillStyle = "rgba(30,20,15,0.10)";
+  g.fillRect(30, 78, 18, 6);               // pómulo izquierdo
+  g.fillRect(80, 78, 18, 6);               // pómulo derecho
+  g.fillRect(50, 84, 4, 8);                // surco nasolabial izquierdo
+  g.fillRect(74, 84, 4, 8);                // surco nasolabial derecho
+  g.fillStyle = "rgba(120,60,50,0.22)";
+  g.fillRect(52, 86, 24, 10);              // labios (tinte cálido bajo la boca)
   // ojos (dos bloques)
   g.fillStyle = "#2b2724";
   g.fillRect(34, 52, 16, 22);
@@ -228,6 +238,34 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
     head.add(box(0.05, 0.22, hs * 0.7, hc, hs / 2 + 0.01, top - 0.10, -0.03));       // lado derecho
   } else if (hair === "cresta") {
     head.add(box(0.07, 0.16, hs + 0.06, hc, 0, top + 0.08, -0.02));
+  }
+
+  // ── RELIEVE FACIAL 3D: la cara sobresale del cubo ────────────
+  // La textura solo se lee de frente; el relieve (nariz, orejas, cejas,
+  // barba 3D) se lee desde CUALQUIER ángulo y recibe luz y sombra.
+  const zf = hs / 2;                       // plano frontal de la cara
+  // nariz: taco central que da perfil a todos los personajes
+  head.add(box(hs * 0.16, hs * 0.20, 0.05, skin, 0, cy + hs * 0.02, zf + 0.02));
+  // orejas
+  head.add(box(0.035, hs * 0.22, hs * 0.16, skin, -(zf + 0.014), cy + 0.02, -0.01));
+  head.add(box(0.035, hs * 0.22, hs * 0.16, skin, zf + 0.014, cy + 0.02, -0.01));
+  // cejas en relieve (solo fruncido: marca el enfado y da sombra sobre los ojos)
+  const bc3 = face?.beardColor ?? 0x2b2118;
+  if (face?.brows === "fruncido") {
+    const bl = box(hs * 0.30, 0.028, 0.03, bc3, -hs * 0.18, cy + hs * 0.23, zf + 0.012);
+    bl.rotation.z = -0.22; head.add(bl);
+    const br = box(hs * 0.30, 0.028, 0.03, bc3, hs * 0.18, cy + hs * 0.23, zf + 0.012);
+    br.rotation.z = 0.22; head.add(br);
+  }
+  // barba 3D: placas que ENVUELVEN la mandíbula — se lee de frente, perfil y atrás
+  if (face?.beard === "completa") {
+    head.add(box(hs * 0.92, hs * 0.40, 0.055, bc3, 0, cy - hs * 0.28, zf + 0.018));       // placa frontal
+    head.add(box(0.05, hs * 0.52, hs * 0.55, bc3, -(zf + 0.012), cy - hs * 0.18, 0.03)); // mejilla izquierda
+    head.add(box(0.05, hs * 0.52, hs * 0.55, bc3, zf + 0.012, cy - hs * 0.18, 0.03));    // mejilla derecha
+    head.add(box(hs * 0.70, 0.07, hs * 0.75, bc3, 0, cy - hs / 2 + 0.015, 0.03));        // barbilla bajo el cubo
+  } else if (face?.beard === "perilla") {
+    head.add(box(hs * 0.42, hs * 0.34, 0.055, bc3, 0, cy - hs * 0.30, zf + 0.018));      // mechón frontal
+    head.add(box(hs * 0.38, 0.07, hs * 0.40, bc3, 0, cy - hs / 2 + 0.015, zf * 0.35));   // bajo la barbilla
   }
 
   if (spec.helmet !== undefined) {
