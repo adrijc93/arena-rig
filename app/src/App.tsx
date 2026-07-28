@@ -87,7 +87,7 @@ export default function App() {
   const faceRef = useRef(faceId); faceRef.current = faceId;
   // &t=1.23 congela el reloj procedural · &ry=2.1: en solitario anula
   // rotationY del modelo; en duelo fija el acimut de la cámara (capturas)
-  const tFreeze = useRef<number | null>(q.get("t") !== null ? parseFloat(q.get("t"!)!) : null);
+  const tFreeze = useRef<number | null>(q.get("t") !== null ? parseFloat(q.get("t")!) : null);
   const ryOverride = useRef<number | null>(q.get("ry") !== null ? parseFloat(q.get("ry")!) : null);
   // &collide=0 desactiva el detector de colisiones (comparar antes/después)
   const collideOn = useRef(q.get("collide") !== "0");
@@ -415,7 +415,7 @@ export default function App() {
 
         <div className="space-y-1.5">
           <div className="flex gap-1">
-            {(["comun", "Común"], ["pie", "MMA · En pie 🥊"], ["suelo", "MMA · Suelo 🤼"]).map(([s, l]) => (
+            {([["comun", "Común"], ["pie", "MMA · En pie 🥊"], ["suelo", "MMA · Suelo 🤼"]] as const).map(([s, l]) => (
               <button key={s} onClick={() => { setMoveSet(s); setMove(s === "comun" ? "guardia" : s === "pie" ? "guardia-mma" : "guardia-abajo"); }}
                 className={`flex-1 py-1 rounded text-[11px] font-bold ${moveSet === s ? "bg-sky-500 text-black" : "bg-stone-800"}`}>
                 {l}
