@@ -116,12 +116,13 @@ export function mmaPoseFor(id: string, t: number): Pose {
     }
 
     case "hook": {
-      const u = cyc(t, 1.1);
+      const u = cyc(t, 1.0);
       // carga: el brazo abre fuera (codo alto, puño al lado de la cabeza)…
       // ¡y TAMBIÉN decae!: si no, el ciclo acaba con el brazo abierto
-      const load = u < 0.25 ? easeOut(u / 0.25) : u < 0.5 ? 1 : 1 - easeIn((u - 0.5) / 0.25);
-      // barrido: arco horizontal rápido a través del objetivo, pausa y vuelta
-      const s = u < 0.25 ? 0 : u < 0.5 ? easeOut((u - 0.25) / 0.25) : u < 0.62 ? 1 : 1 - easeIn((u - 0.62) / 0.38);
+      const load = u < 0.22 ? easeOut(u / 0.22) : u < 0.45 ? 1 : u < 0.68 ? 1 - easeIn((u - 0.45) / 0.23) : 0;
+      // barrido: arco horizontal rápido a través del objetivo, pausa corta
+      // y vuelta — el golpe se cierra pronto y queda un respiro en guardia
+      const s = u < 0.22 ? 0 : u < 0.42 ? easeOut((u - 0.22) / 0.2) : u < 0.52 ? 1 : u < 0.85 ? 1 - easeIn((u - 0.52) / 0.33) : 0;
       // El arco horizontal sale del eje Z (codo fuera) + eje Y (barrido
       // alrededor del vertical): con el brazo colgando, Y solo es efectiva
       // después de abrir el brazo con Z (orden de euler XYZ).
