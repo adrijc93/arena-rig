@@ -116,15 +116,17 @@ export function mmaPoseFor(id: string, t: number): Pose {
     }
 
     case "hook": {
-      const u = cyc(t, 1.0);
+      // MISMO timing que el uppercut: carga en el primer 30% del ciclo,
+      // golpe en 0.30–0.55, vuelta hasta el final (periodo 1.2s)
+      const u = cyc(t, 1.2);
       // carga: el brazo abre fuera (codo alto, puño al lado de la cabeza)…
       // ¡y TAMBIÉN decae!: si no, el ciclo acaba con el brazo abierto
-      const load = u < 0.22 ? easeOut(u / 0.22) : u < 0.45 ? 1 : u < 0.68 ? 1 - easeIn((u - 0.45) / 0.23) : 0;
+      const load = u < 0.3 ? easeIn(u / 0.3) : u < 0.55 ? 1 : u < 0.9 ? 1 - easeIn((u - 0.55) / 0.35) : 0;
       // barrido del BRAZO: va por delante del cuerpo — el puño llega al frente
       // ANTES de que el giro termine; el cuerpo cierra con el puño ya en el rival
-      const s = u < 0.2 ? 0 : u < 0.38 ? easeOut((u - 0.2) / 0.18) : u < 0.52 ? 1 : u < 0.82 ? 1 - easeIn((u - 0.52) / 0.3) : 0;
+      const s = u < 0.3 ? 0 : u < 0.52 ? easeOut((u - 0.3) / 0.22) : u < 0.58 ? 1 : u < 0.95 ? 1 - easeIn((u - 0.58) / 0.37) : 0;
       // giro del CUERPO (hombro/cadera): ligeramente retrasado, cierra el golpe
-      const body = u < 0.24 ? 0 : u < 0.44 ? easeOut((u - 0.24) / 0.2) : u < 0.56 ? 1 : u < 0.88 ? 1 - easeIn((u - 0.56) / 0.32) : 0;
+      const body = u < 0.33 ? 0 : u < 0.58 ? easeOut((u - 0.33) / 0.25) : u < 0.64 ? 1 : 1 - easeIn((u - 0.64) / 0.36);
       // El arco horizontal sale del eje Z (codo fuera) + eje Y (barrido
       // alrededor del vertical): con el brazo colgando, Y solo es efectiva
       // después de abrir el brazo con Z (orden de euler XYZ).
