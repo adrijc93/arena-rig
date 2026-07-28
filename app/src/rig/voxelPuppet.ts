@@ -22,6 +22,7 @@ export interface FaceSpec {
   mouth?: "sonrisa" | "serio";
   beard?: "none" | "perilla" | "completa" | "stubble";
   beardColor?: number;
+  nose?: "recta" | "ancha" | "afilada" | "chata" | "aguilena";
   hair?: "none" | "rapado" | "corto" | "melena" | "cresta" | "papakha";
   hairColor?: number;
 }
@@ -244,11 +245,29 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
   // La textura solo se lee de frente; el relieve (nariz, orejas, cejas,
   // barba 3D) se lee desde CUALQUIER ángulo y recibe luz y sombra.
   const zf = hs / 2;                       // plano frontal de la cara
-  // nariz: taco central que da perfil a todos los personajes
-  head.add(box(hs * 0.16, hs * 0.20, 0.05, skin, 0, cy + hs * 0.02, zf + 0.02));
+  // nariz 3D con FORMAS: cada luchador tiene la suya (perfil reconocible)
+  const nose = face?.nose ?? "recta";
+  if (nose === "ancha") {
+    // ancha y aplastada (Jon Jones)
+    head.add(box(hs * 0.26, hs * 0.16, 0.05, skin, 0, cy, zf + 0.02));
+  } else if (nose === "afilada") {
+    // fina y larga, sobresale más (McGregor)
+    head.add(box(hs * 0.12, hs * 0.26, 0.07, skin, 0, cy + hs * 0.03, zf + 0.028));
+  } else if (nose === "chata") {
+    // ancha pero baja y pegada (Anderson Silva)
+    head.add(box(hs * 0.24, hs * 0.11, 0.035, skin, 0, cy - hs * 0.02, zf + 0.012));
+  } else if (nose === "aguilena") {
+    // puente alto que sobresale arriba, cae recta (Khabib)
+    const nb = box(hs * 0.14, hs * 0.26, 0.06, skin, 0, cy + hs * 0.05, zf + 0.02);
+    nb.rotation.x = -0.18;
+    head.add(nb);
+  } else {
+    // recta: la estándar
+    head.add(box(hs * 0.16, hs * 0.20, 0.05, skin, 0, cy + hs * 0.02, zf + 0.02));
+  }
   // orejas
-  head.add(box(0.035, hs * 0.22, hs * 0.16, skin, -(zf + 0.014), cy + 0.02, -0.01));
-  head.add(box(0.035, hs * 0.22, hs * 0.16, skin, zf + 0.014, cy + 0.02, -0.01));
+  head.add(box(0.03, hs * 0.22, hs * 0.16, skin, -(zf + 0.008), cy + 0.02, -0.01));
+  head.add(box(0.03, hs * 0.22, hs * 0.16, skin, zf + 0.008, cy + 0.02, -0.01));
   // cejas en relieve (solo fruncido: marca el enfado y da sombra sobre los ojos)
   const bc3 = face?.beardColor ?? 0x2b2118;
   if (face?.brows === "fruncido") {
@@ -257,15 +276,21 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
     const br = box(hs * 0.30, 0.028, 0.03, bc3, hs * 0.18, cy + hs * 0.23, zf + 0.012);
     br.rotation.z = 0.22; head.add(br);
   }
-  // barba 3D: placas que ENVUELVEN la mandíbula — se lee de frente, perfil y atrás
+  // barba 3D ESCALONADA: bigote, mejillas, mandíbula y punta, cada una a
+  // su profundidad, y la barba CUELGA bajo el mentón como una de verdad.
+  // (La placa única de antes parecía un bloque flotando delante de la cara.)
   if (face?.beard === "completa") {
-    head.add(box(hs * 0.92, hs * 0.40, 0.055, bc3, 0, cy - hs * 0.28, zf + 0.018));       // placa frontal
-    head.add(box(0.05, hs * 0.52, hs * 0.55, bc3, -(zf + 0.012), cy - hs * 0.18, 0.03)); // mejilla izquierda
-    head.add(box(0.05, hs * 0.52, hs * 0.55, bc3, zf + 0.012, cy - hs * 0.18, 0.03));    // mejilla derecha
-    head.add(box(hs * 0.70, 0.07, hs * 0.75, bc3, 0, cy - hs / 2 + 0.015, 0.03));        // barbilla bajo el cubo
+    head.add(box(hs * 0.50, 0.045, 0.035, bc3, 0, cy - hs * 0.13, zf + 0.010));          // bigote bajo la nariz
+    head.add(box(hs * 0.88, hs * 0.16, 0.03, bc3, 0, cy - hs * 0.25, zf + 0.006));       // línea alta de mejillas
+    head.add(box(hs * 0.80, hs * 0.22, 0.045, bc3, 0, cy - hs * 0.40, zf + 0.012));      // mandíbula principal
+    head.add(box(hs * 0.58, hs * 0.18, 0.065, bc3, 0, cy - hs * 0.53, zf + 0.018));      // punta de la barbilla (cuelga)
+    head.add(box(0.045, hs * 0.55, hs * 0.55, bc3, -(zf + 0.010), cy - hs * 0.15, 0.02)); // patilla/mejilla izq
+    head.add(box(0.045, hs * 0.55, hs * 0.55, bc3, zf + 0.010, cy - hs * 0.15, 0.02));   // patilla/mejilla der
+    head.add(box(hs * 0.62, 0.06, hs * 0.68, bc3, 0, cy - hs / 2 + 0.012, 0.02));        // bajo la barbilla
   } else if (face?.beard === "perilla") {
-    head.add(box(hs * 0.42, hs * 0.34, 0.055, bc3, 0, cy - hs * 0.30, zf + 0.018));      // mechón frontal
-    head.add(box(hs * 0.38, 0.07, hs * 0.40, bc3, 0, cy - hs / 2 + 0.015, zf * 0.35));   // bajo la barbilla
+    head.add(box(hs * 0.44, 0.035, 0.03, bc3, 0, cy - hs * 0.13, zf + 0.008));           // bigote
+    head.add(box(hs * 0.40, hs * 0.18, 0.045, bc3, 0, cy - hs * 0.34, zf + 0.015));      // mechón
+    head.add(box(hs * 0.28, hs * 0.14, 0.055, bc3, 0, cy - hs * 0.47, zf + 0.025));      // punta del mechón (cuelga)
   }
 
   if (spec.helmet !== undefined) {
@@ -320,13 +345,13 @@ export const FACE_PRESETS: FacePreset[] = [
   { id: "veterano", label: "🧓 Veterano", face: { hair: "corto", hairColor: 0x9a938c, beard: "completa", beardColor: 0x8a837c } },
   // ── inspirados en leyendas de UFC ──
   { id: "aguila", label: "🦅 El Águila", skin: 0xc89878,
-    face: { hair: "papakha", hairColor: 0xe8dcc0, beard: "completa", beardColor: 0x14100c, brows: "fruncido", mouth: "serio" } },
+    face: { hair: "papakha", hairColor: 0xe8dcc0, beard: "completa", beardColor: 0x14100c, brows: "fruncido", mouth: "serio", nose: "aguilena" } },
   { id: "notorio", label: "☘️ El Notorio", skin: 0xdbb48a,
-    face: { hair: "corto", hairColor: 0x8a5c34, beard: "completa", beardColor: 0x8a5c34, brows: "fruncido", mouth: "serio" } },
+    face: { hair: "corto", hairColor: 0x8a5c34, beard: "completa", beardColor: 0x8a5c34, brows: "fruncido", mouth: "serio", nose: "afilada" } },
   { id: "huesos", label: "🦴 Huesos", skin: 0x8a5f45,
-    face: { hair: "rapado", hairColor: 0x17110d, mouth: "serio" } },
+    face: { hair: "rapado", hairColor: 0x17110d, mouth: "serio", nose: "ancha" } },
   { id: "arana", label: "🕷️ La Araña", skin: 0x7a5138,
-    face: { hair: "rapado", hairColor: 0x17110d, beard: "stubble", mouth: "serio" } },
+    face: { hair: "rapado", hairColor: 0x17110d, beard: "stubble", mouth: "serio", nose: "chata" } },
   { id: "lobo", label: "🐺 El Lobo", skin: 0xd0a884,
-    face: { hair: "corto", hairColor: 0x241a10, beard: "completa", beardColor: 0x241a10, brows: "fruncido" } },
+    face: { hair: "corto", hairColor: 0x241a10, beard: "completa", beardColor: 0x241a10, brows: "fruncido", nose: "recta" } },
 ];
