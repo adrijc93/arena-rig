@@ -24,27 +24,27 @@ export const DUO_DEFAULT: DuoCfg = { def: "guardia-mma", dist: 1.1 };
 
 export const DUO: Record<string, DuoCfg> = {
   /* ─── Guardia y defensas (el rival ATACA, tú defiendes) ─── */
-  "guardia-mma":    { def: "guardia-mma", dist: 1.0 },
-  "esquiva":        { def: "jab", pA: 1.4, pD: 0.9, dist: 1.05 },
-  "parada":         { def: "jab", pA: 1.2, pD: 0.9, dist: 1.0 },
-  "retirada":       { def: "cross", pA: 1.2, pD: 1.15, dist: 1.05 },
+  "guardia-mma":    { def: "guardia-mma", dist: 0.95 },
+  "esquiva":        { def: "jab", pA: 1.4, pD: 0.9, dist: 0.98 },
+  "parada":         { def: "jab", pA: 1.2, pD: 0.9, dist: 0.92 },
+  "retirada":       { def: "cross", pA: 1.2, pD: 1.15, dist: 1.0 },
   "cobertura":      { def: "hook", pD: 1.2, dist: 0.95 },
   "bloqueo-alto":   { def: "circular", pA: 1.4, pD: 1.6, dist: 1.25 },
   "bloqueo-cuerpo": { def: "patada-cuerpo", pA: 1.4, pD: 1.6, dist: 1.25 },
   "chequeo":        { def: "low-kick", pA: 1.4, pD: 1.6, dist: 1.25 },
 
   /* ─── Puños ─── */
-  "jab":            { def: "parada", pA: 0.9, pD: 1.2, dist: 1.0 },
-  "cross":          { def: "retirada", pA: 1.15, pD: 1.2, dist: 1.05 },
-  "hook":           { def: "cobertura", pA: 1.2, dist: 0.95 },
-  "uppercut":       { def: "retirada", pA: 1.2, pD: 1.2, dist: 1.0 },
-  "overhand":       { def: "bloqueo-alto", pA: 1.3, pD: 1.4, dist: 1.05 },
-  "gancho-cuerpo":  { def: "bloqueo-cuerpo", pA: 1.3, pD: 1.4, dist: 1.0 },
-  "superman":       { def: "cobertura", pA: 1.5, dist: 1.1 },
-  "backfist":       { def: "cobertura", pA: 1.4, dist: 1.1 },
+  "jab":            { def: "parada", pA: 0.9, pD: 1.2, dist: 0.92 },
+  "cross":          { def: "retirada", pA: 1.15, pD: 1.2, dist: 0.98 },
+  "hook":           { def: "cobertura", pA: 1.2, dist: 0.9 },
+  "uppercut":       { def: "retirada", pA: 1.2, pD: 1.2, dist: 0.92 },
+  "overhand":       { def: "bloqueo-alto", pA: 1.3, pD: 1.4, dist: 0.98 },
+  "gancho-cuerpo":  { def: "bloqueo-cuerpo", pA: 1.3, pD: 1.4, dist: 0.92 },
+  "superman":       { def: "cobertura", pA: 1.5, dist: 1.0 },
+  "backfist":       { def: "cobertura", pA: 1.4, dist: 1.0 },
 
   /* ─── Codos ─── */
-  "codo":           { def: "bloqueo-alto", pA: 1.0, pD: 1.4, dist: 0.95 },
+  "codo":           { def: "bloqueo-alto", pA: 1.0, pD: 1.4, dist: 0.9 },
   "codo-giro":      { def: "cobertura", pA: 1.3, dist: 1.05 },
 
   /* ─── Patadas y rodillas ─── */
