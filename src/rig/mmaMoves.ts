@@ -117,13 +117,24 @@ export function mmaPoseFor(id: string, t: number): Pose {
 
     case "hook": {
       const u = cyc(t, 1.1);
-      const s = u < 0.4 ? easeOut(u / 0.4) : 1 - easeIn((u - 0.4) / 0.6);
-      p.uaL = [-1.25, -0.2 + s * 1.0, -0.05];           // arco circular
-      p.faL = -1.55;                                     // codo a 90°
-      // como en el jab: el hombro izquierdo gira hacia adelante con el arco
-      p.twist = 0.35 - s * 0.5;
-      p.hipsY = -s * 0.12;
-      p.lean = 0.1 + s * 0.08;
+      // carga: el brazo abre fuera (codo alto, puño al lado de la cabeza)
+      const load = u < 0.25 ? easeOut(u / 0.25) : 1;
+      // barrido: arco horizontal rápido a través del objetivo, pausa y vuelta
+      const s = u < 0.25 ? 0 : u < 0.5 ? easeOut((u - 0.25) / 0.25) : u < 0.62 ? 1 : 1 - easeIn((u - 0.62) / 0.38);
+      // El arco horizontal sale del eje Z (codo fuera) + eje Y (barrido
+      // alrededor del vertical): con el brazo colgando, Y solo es efectiva
+      // después de abrir el brazo con Z (orden de euler XYZ).
+      p.uaL = [
+        -0.5 - load * 0.2 - s * 0.5,    // sube al hombro → horizontal al impacto
+        -s * 1.1,                       // barrido a TRAVÉS del objetivo
+        0.55 + load * 0.35 - s * 0.45,  // codo abre fuera en la carga → cierra al impacto
+      ];
+      p.faL = -1.55;                                     // codo a 90° siempre
+      // como en el jab: el hombro izquierdo atraviesa con el arco
+      p.twist = 0.35 - s * 0.55;
+      p.hipsY = -s * 0.15;
+      p.lean = 0.1 + s * 0.1;
+      p.bob = -load * 0.03 + s * 0.02;
       p.uaR = [-1.0, 0, 0.3]; p.faR = -2.0;             // la otra protege
       return p;
     }
