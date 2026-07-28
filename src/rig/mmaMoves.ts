@@ -201,7 +201,9 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.thR = 0.18 - whip * 1.35;                      // la espinilla cruza el objetivo
       p.shR = 0.55 - whip * 0.45;                      // semidoblada → extiende al contacto
       p.hipsY = whip * 0.55;                           // la cadera DERECHA atraviesa (giro completo)
-      p.twist = 0.35 - whip * 0.7;                     // hombros contrarrotan: equilibrio
+      p.twist = 0.35 - step * 0.15 - whip * 0.25;      // hombros: cargan atrás y luego ACOMPAÑAN
+                                                       // el giro CON RETRASO (la cadera lidera) —
+                                                       // el pecho nunca gira en sentido contrario
       p.lean = 0.1 - whip * 0.3;                       // se echa atrás al patear
       p.hipsZ = whip * 0.18;                           // cae hacia el lado de apoyo
       p.ankL = [0, whip * 0.6, 0];                     // ¡pivote del pie de apoyo!
