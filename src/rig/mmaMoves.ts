@@ -1,5 +1,10 @@
 import { clamp01, clonePose, easeIn, easeOut } from "./poseDriver";
 import type { Pose } from "./poseDriver";
+import {
+  MMA_GROUND_DERRIBOS, MMA_GROUND_POSICIONES, MMA_GROUND_SUMISIONES, MMA_GROUND_ESCAPES,
+  mmaGroundPoseFor,
+} from "./mmaGround";
+import type { MmaGroundMoveId } from "./mmaGround";
 
 /* ════════════════════════════════════════════════════════════════
    SET MMA — biblioteca procedural de movimientos y posturas.
@@ -16,7 +21,8 @@ export type MmaMoveId =
   | "low-kick" | "patada-cuerpo" | "circular" | "frontal" | "lateral" | "switch" | "rodilla" | "rodilla-voladora"
   | "clinch" | "sprawl" | "derribo"
   | "guardia-abajo" | "guardia-arriba" | "montada" | "ground-pound" | "sumision"
-  | "ko-plano";
+  | "ko-plano"
+  | MmaGroundMoveId;
 
 export type MmaSeccion = "pie" | "suelo";
 
@@ -52,11 +58,15 @@ export const MMA_MOVES: { id: MmaMoveId; label: string; seccion: MmaSeccion; gru
   // ─── SUELO ───
   { id: "sprawl", label: "Sprawl (defensa)", seccion: "suelo", grupo: "Derribos" },
   { id: "derribo", label: "Derribo (double leg)", seccion: "suelo", grupo: "Derribos" },
+  ...MMA_GROUND_DERRIBOS,
   { id: "guardia-abajo", label: "Guardia (abajo)", seccion: "suelo", grupo: "Posiciones" },
   { id: "guardia-arriba", label: "Guardia (arriba)", seccion: "suelo", grupo: "Posiciones" },
   { id: "montada", label: "Montada", seccion: "suelo", grupo: "Posiciones" },
+  ...MMA_GROUND_POSICIONES,
   { id: "ground-pound", label: "Ground & pound", seccion: "suelo", grupo: "Ataque" },
-  { id: "sumision", label: "Sumisión (armbar)", seccion: "suelo", grupo: "Ataque" },
+  { id: "sumision", label: "Sumisión (armbar)", seccion: "suelo", grupo: "Sumisiones" },
+  ...MMA_GROUND_SUMISIONES,
+  ...MMA_GROUND_ESCAPES,
   { id: "ko-plano", label: "KO (caída atrás)", seccion: "suelo", grupo: "KO" },
 ];
 
@@ -703,6 +713,10 @@ export function mmaPoseFor(id: string, t: number): Pose {
     }
 
   }
+
+  // movimientos de suelo/grappling (mmaGround.ts)
+  const g = mmaGroundPoseFor(id, t);
+  if (g) return g;
 
   return p; // id desconocido → guardia MMA
 }
