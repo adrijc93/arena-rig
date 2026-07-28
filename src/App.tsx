@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { BVHLoader } from "three/examples/jsm/loaders/BVHLoader.js";
-import { applyPose, clonePose, findRig, GUARD, lerpPose, mirrorPose } from "./rig/poseDriver";
+import { applyPose, clonePose, findRig, GUARD, lerpPose } from "./rig/poseDriver";
 import type { Pose, Rig } from "./rig/poseDriver";
-import { bakeClip, removeDrift, sampleBaked } from "./rig/baker";
-import type { BakedClip } from "./rig/baker";
 import { MOVES, poseFor } from "./rig/moves";
 import type { MoveId } from "./rig/moves";
 import { MMA_MOVES, mmaPoseFor } from "./rig/mmaMoves";
@@ -13,12 +10,10 @@ import { buildVoxelPuppet } from "./rig/voxelPuppet";
 
 /* ════════════════════════════════════════════════════════════════
    ARENA RIG LAB — banco de pruebas del motor de animación.
-   Todos los personajes son pieles de la marioneta voxel.
-   Elige personaje → elige driver (poses procedurales o mocap CMU
-   horneado) → elige movimiento. Base compartida de LUDUS y MMA.
+   Todos los personajes son pieles de la marioneta voxel y todas
+   las animaciones son PROCEDURALES (nuestra biblioteca de poses).
+   Elige personaje → elige movimiento. Base compartida de LUDUS y MMA.
    ════════════════════════════════════════════════════════════════ */
-
-type Driver = "procedural" | "baked";
 
 interface Loaded {
   rig: Rig | null;
@@ -26,42 +21,22 @@ interface Loaded {
   snapshot: Map<THREE.Object3D, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }>;
 }
 
-/* Mocap real de lucha — dataset CMU (Carnegie Mellon), licencia libre
-   (uso/modificación/redistribución permitidos; no reventa del dato crudo).
-   Se hornean a Poses y se reproducen por nuestro motor (driver "Horneado"). */
-const CMU_CLIPS: { file: string; label: string }[] = [
-  { file: "cmu/13_17.bvh", label: "Boxeo I" },
-  { file: "cmu/14_01.bvh", label: "Boxeo II" },
-  { file: "cmu/14_02.bvh", label: "Boxeo III" },
-  { file: "cmu/76_01.bvh", label: "Puñetazo" },
-  { file: "cmu/74_03.bvh", label: "Patadas" },
-  { file: "cmu/86_01.bvh", label: "Patadas+puños+saltos" },
-  { file: "cmu/02_07.bvh", label: "Espada ⚔ (LUDUS)" },
-];
-
 export default function App() {
   const ref = useRef<HTMLDivElement>(null);
   const q = new URLSearchParams(window.location.search);
   const [modelId, setModelId] = useState(q.get("model") ?? MODELS[0].id);
-  const [driver, setDriver] = useState<Driver>(q.get("driver") === "baked" ? "baked" : "procedural");
   const qSet = q.get("set");
   const [moveSet, setMoveSet] = useState<"comun" | "pie" | "suelo">(
     qSet === "pie" || qSet === "suelo" ? qSet : qSet === "mma" ? "pie" : "comun");
   const [move, setMove] = useState<string>(q.get("move") || "guardia");
-  const [clip, setClip] = useState(q.get("clip") ?? "cmu/13_17.bvh");
-  const [mirror, setMirror] = useState(q.get("mirror") === "1"); // espejo zurdo (driver horneado)
   const [status, setStatus] = useState("Cargando…");
 
   const modelRef = useRef(modelId); modelRef.current = modelId;
-  const driverRef = useRef(driver); driverRef.current = driver;
   const setRef = useRef(moveSet); setRef.current = moveSet;
   const moveRef = useRef(move); moveRef.current = move;
-  const clipRef = useRef(clip); clipRef.current = clip;
-  const mirrorRef = useRef(mirror); mirrorRef.current = mirror;
   // &t=1.23 congela el reloj procedural · &ry=2.1 anula rotationY (depuración / capturas)
   const tFreeze = useRef<number | null>(q.get("t") !== null ? parseFloat(q.get("t")!) : null);
   const ryOverride = useRef<number | null>(q.get("ry") !== null ? parseFloat(q.get("ry")!) : null);
-  const skelRef = useRef(q.get("skel") === "1"); // &skel=1 muestra el esqueleto BVH crudo
 
   useEffect(() => {
     const el = ref.current!;
@@ -106,65 +81,6 @@ export default function App() {
 
     let current: { root: THREE.Object3D; loaded: Loaded; prev: Pose } | null = null;
     let loading = false;
-    /* mocap CMU: se carga el BVH, se detecta su rig y se hornea a Poses con
-       referencia = postura del fotograma 0 (casa con el reposo del muñeco).
-       SIN snapshot de neutralización: los huesos no mapeados (LHipJoint,
-       Neck1, dedos…) se ABSORBEN en el Δ del padre mapeado → más fidelidad. */
-    interface CmuEntry {
-      bc: BakedClip;
-      raw: { g: THREE.Group; helper: THREE.SkeletonHelper; mixer: THREE.AnimationMixer; action: THREE.AnimationAction };
-    }
-    const cmuCache = new Map<string, CmuEntry | "loading">(); // "cmu/xx_yy.bvh" → horneado + esqueleto crudo
-    let rawShown: CmuEntry["raw"] | null = null; // esqueleto de referencia visible (&skel=1)
-    const ensureCmu = (clipId: string) => {
-      if (cmuCache.has(clipId)) return;
-      cmuCache.set(clipId, "loading");
-      setStatus(`Cargando mocap CMU ${clipId.split("/")[1]}…`);
-      new BVHLoader().load("models/" + clipId, (res) => {
-        const root = res.skeleton.bones[0];
-        const rigCmu = findRig(root); // rest = pose canónica (rotaciones en cero)
-        if (!rigCmu) { cmuCache.delete(clipId); setStatus("CMU: rig no reconocido"); return; }
-        const mixerCmu = new THREE.AnimationMixer(root);
-        const action = mixerCmu.clipAction(res.clip);
-        // El OFFSET raíz del BVH es (0,0,0): la base de traslación hay que
-        // medirla en el primer fotograma (cadera a su altura real de pie).
-        action.play(); mixerCmu.update(0);
-        // Referencia de rotación = POSTURA del fotograma 0 (guardia natural
-        // de pie), NO el cero del archivo: así casa con el reposo del muñeco
-        // (de pie, brazos abajo) y no quedan offsets en cadera/piernas.
-        rigCmu.rest.forEach((_, b) => rigCmu.rest.set(b, b.quaternion.clone()));
-        rigCmu.hipsBaseX = root.position.x;
-        rigCmu.hipsBaseY = root.position.y;
-        rigCmu.hipsBaseZ = root.position.z;
-        rigCmu.unit = root.position.y / 1.02;
-        // escala del esqueleto de referencia: caja de las posiciones de mundo
-        // de los huesos en el FOTOGRAMA 0 (antes de hornear, que deja el
-        // esqueleto en el último fotograma)
-        root.updateMatrixWorld(true);
-        const bb = new THREE.Box3();
-        root.traverse((o) => bb.expandByPoint(o.getWorldPosition(new THREE.Vector3())));
-        const sh = 1.85 / Math.max(0.01, bb.max.y - bb.min.y);
-        const g = new THREE.Group();
-        g.add(root);
-        g.scale.setScalar(sh);
-        g.position.set(-1.4, -bb.min.y * sh, 0);
-        action.stop();
-        const bc = bakeClip(rigCmu, mixerCmu, action, 30);
-        removeDrift(bc); // el boxeo recorre metros: lo dejamos en el sitio
-        // referencia visual: el esqueleto BVH crudo a la izquierda (&skel=1),
-        // escalado a la altura del muñeco, con su propio mixer independiente
-        g.visible = false;
-        scene.add(g);
-        // el helper DIBUJA las posiciones de mundo de los huesos: debe colgar
-        // de la escena; si cuelga de g, la transformación de g se aplica 2 veces
-        const helper = new THREE.SkeletonHelper(root);
-        helper.visible = false;
-        scene.add(helper);
-        const rawMixer = new THREE.AnimationMixer(root);
-        cmuCache.set(clipId, { bc, raw: { g, helper, mixer: rawMixer, action: rawMixer.clipAction(res.clip) } });
-        setStatus(`CMU ${clipId.split("/")[1]} horneado: ${bc.frames.length} fotogramas (${((bc.frames.length - 1) / bc.fps).toFixed(1)}s)`);
-      }, undefined, () => { cmuCache.delete(clipId); setStatus("Error cargando " + clipId); });
-    };
 
     const loadModel = (id: string) => {
       const f = MODELS.find((m) => m.id === id)!;
@@ -209,59 +125,18 @@ export default function App() {
     const loop = () => {
       try {
         const dt = clock.getDelta();
+        void dt;
         const t = tFreeze.current ?? (performance.now() - t0) / 1000;
-        if (current) {
-          const { loaded } = current;
-          // apagar el esqueleto de referencia al salir de horneado/&skel
-          if (rawShown && (driverRef.current !== "baked" || !skelRef.current)) {
-            rawShown.g.visible = false;
-            rawShown.helper.visible = false;
-            rawShown = null;
-          }
-          if (driverRef.current === "baked") {
-            if (loaded.rig) {
-              const clipId = clipRef.current;
-              const e = cmuCache.get(clipId);
-              if (!e) ensureCmu(clipId);
-              else if (e !== "loading") {
-                // esqueleto crudo de referencia (&skel=1): verdad absoluta
-                if (skelRef.current) {
-                  if (rawShown !== e.raw) {
-                    if (rawShown) { rawShown.g.visible = false; rawShown.helper.visible = false; }
-                    rawShown = e.raw;
-                    e.raw.g.visible = true;
-                    e.raw.helper.visible = true;
-                    e.raw.action.reset().play();
-                  }
-                  // con reloj congelado (&t=), el esqueleto se sincroniza al mismo t
-                  if (tFreeze.current !== null) {
-                    e.raw.action.paused = true;
-                    e.raw.action.time = t % e.raw.action.getClip().duration;
-                    e.raw.mixer.update(0);
-                  } else {
-                    e.raw.mixer.update(dt);
-                  }
-                }
-                let pose = sampleBaked(e.bc, t);
-                if (mirrorRef.current) pose = mirrorPose(pose);
-                current.prev = tFreeze.current !== null ? pose : lerpPose(current.prev, pose, 0.65);
-                // CMU y el muñeco comparten referencia "de pie, brazos abajo"
-                applyPose(loaded.rig, current.prev);
-              }
-            }
-          } else {
-            if (loaded.rig) {
-              let target: Pose;
-              // pose de calibración: brazo derecho al frente — debe apuntar a cámara
-              if (moveRef.current === "test-frente") target = { ...clonePose(GUARD), twist: 0, uaR: [-1.55, 0, 0], faR: -0.05, uaL: [-0.2, 0, -0.1], faL: -0.3 };
-              else target = setRef.current === "comun"
-                ? poseFor(moveRef.current as MoveId, t)
-                : mmaPoseFor(moveRef.current, t);
-              // con reloj congelado (&t=) la pose se aplica directa, sin suavizado
-              current.prev = tFreeze.current !== null ? target : lerpPose(current.prev, target, 0.4);
-              applyPose(loaded.rig, current.prev);
-            }
-          }
+        if (current && current.loaded.rig) {
+          let target: Pose;
+          // pose de calibración: brazo derecho al frente — debe apuntar a cámara
+          if (moveRef.current === "test-frente") target = { ...clonePose(GUARD), twist: 0, uaR: [-1.55, 0, 0], faR: -0.05, uaL: [-0.2, 0, -0.1], faL: -0.3 };
+          else target = setRef.current === "comun"
+            ? poseFor(moveRef.current as MoveId, t)
+            : mmaPoseFor(moveRef.current, t);
+          // con reloj congelado (&t=) la pose se aplica directa, sin suavizado
+          current.prev = tFreeze.current !== null ? target : lerpPose(current.prev, target, 0.4);
+          applyPose(current.loaded.rig, current.prev);
         }
         renderer.render(scene, camera);
       } catch (err) {
@@ -299,92 +174,54 @@ export default function App() {
       <div ref={ref} className="flex-1 min-h-0" />
 
       <div className="p-3 bg-black/40 border-t border-stone-700/50 space-y-2">
-        <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <p className="text-[10px] uppercase text-stone-500 font-bold">Personaje</p>
-            <div className="flex flex-col gap-1">
-              {MODELS.map((m) => (
-                <button key={m.id} onClick={() => setModelId(m.id)}
-                  className={`py-1.5 px-2 rounded text-[11px] font-bold text-left ${modelId === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase text-stone-500 font-bold">Personaje</p>
+          <div className="grid grid-cols-3 gap-1">
+            {MODELS.map((m) => (
+              <button key={m.id} onClick={() => setModelId(m.id)}
+                className={`py-1.5 px-2 rounded text-[11px] font-bold text-left ${modelId === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex gap-1">
+            {([["comun", "Común"], ["pie", "MMA · En pie 🥊"], ["suelo", "MMA · Suelo 🤼"]] as const).map(([s, l]) => (
+              <button key={s} onClick={() => { setMoveSet(s); setMove(s === "comun" ? "guardia" : s === "pie" ? "guardia-mma" : "guardia-abajo"); }}
+                className={`flex-1 py-1 rounded text-[11px] font-bold ${moveSet === s ? "bg-sky-500 text-black" : "bg-stone-800"}`}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {moveSet === "comun" ? (
+            <div className="grid grid-cols-3 gap-1">
+              {MOVES.map((m) => (
+                <button key={m.id} onClick={() => setMove(m.id)}
+                  className={`py-1.5 rounded text-[11px] font-bold ${move === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
                   {m.label}
                 </button>
               ))}
             </div>
-          </div>
-          <div className="space-y-1">
-            <p className="text-[10px] uppercase text-stone-500 font-bold">Driver</p>
-            <div className="flex gap-1">
-              {(["procedural", "baked"] as const).map((d) => (
-                <button key={d} onClick={() => setDriver(d)}
-                  className={`flex-1 py-1.5 rounded text-[11px] font-bold ${driver === d ? "bg-emerald-500 text-black" : "bg-stone-800"}`}>
-                  {d === "procedural" ? "Nuestro código" : "Horneado"}
-                </button>
-              ))}
-            </div>
-            <p className="text-[10px] text-stone-500 leading-snug">
-              {driver === "procedural"
-                ? "Cada articulación la mueve nuestra biblioteca de poses."
-                : "Mocap real convertido a Poses: pasa por nuestro motor."}
-            </p>
-            {driver === "baked" && (
-              <label className="flex items-center gap-1.5 text-[11px] text-stone-300 cursor-pointer">
-                <input type="checkbox" checked={mirror} onChange={(e) => setMirror(e.target.checked)} />
-                Espejo zurdo (mismo clip, guardia cambiada)
-              </label>
-            )}
-          </div>
-        </div>
-
-        {driver === "procedural" ? (
-          <div className="space-y-1.5">
-            <div className="flex gap-1">
-              {([["comun", "Común"], ["pie", "MMA · En pie 🥊"], ["suelo", "MMA · Suelo 🤼"]] as const).map(([s, l]) => (
-                <button key={s} onClick={() => { setMoveSet(s); setMove(s === "comun" ? "guardia" : s === "pie" ? "guardia-mma" : "guardia-abajo"); }}
-                  className={`flex-1 py-1 rounded text-[11px] font-bold ${moveSet === s ? "bg-sky-500 text-black" : "bg-stone-800"}`}>
-                  {l}
-                </button>
-              ))}
-            </div>
-            {moveSet === "comun" ? (
-              <div className="grid grid-cols-3 gap-1">
-                {MOVES.map((m) => (
-                  <button key={m.id} onClick={() => setMove(m.id)}
-                    className={`py-1.5 rounded text-[11px] font-bold ${move === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
-                {(Array.from(new Set(MMA_MOVES.filter((m) => m.seccion === moveSet).map((m) => m.grupo))) as string[]).map((g: string) => (
-                  <div key={g}>
-                    <p className="text-[9px] uppercase text-stone-500 font-bold pb-0.5">{g}</p>
-                    <div className="grid grid-cols-3 gap-1">
-                      {MMA_MOVES.filter((m) => m.seccion === moveSet && m.grupo === g).map((m) => (
-                        <button key={m.id} onClick={() => setMove(m.id)}
-                          className={`py-1.5 rounded text-[10px] font-bold ${move === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
-                          {m.label}
-                        </button>
-                      ))}
-                    </div>
+          ) : (
+            <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1">
+              {(Array.from(new Set(MMA_MOVES.filter((m) => m.seccion === moveSet).map((m) => m.grupo))) as string[]).map((g: string) => (
+                <div key={g}>
+                  <p className="text-[9px] uppercase text-stone-500 font-bold pb-0.5">{g}</p>
+                  <div className="grid grid-cols-3 gap-1">
+                    {MMA_MOVES.filter((m) => m.seccion === moveSet && m.grupo === g).map((m) => (
+                      <button key={m.id} onClick={() => setMove(m.id)}
+                        className={`py-1.5 rounded text-[10px] font-bold ${move === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
+                        {m.label}
+                      </button>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div>
-            <p className="text-[9px] uppercase text-stone-500 font-bold pb-0.5">Mocap real · dataset CMU (libre)</p>
-            <div className="grid grid-cols-3 gap-1 max-h-24 overflow-y-auto">
-              {CMU_CLIPS.map((c) => (
-                <button key={c.file} onClick={() => setClip(c.file)}
-                  className={`py-1.5 rounded text-[10px] font-bold ${clip === c.file ? "bg-emerald-500 text-black" : "bg-stone-800"}`}>
-                  {c.label}
-                </button>
+                </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
