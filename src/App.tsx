@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { applyPose, clonePose, findRig, GUARD, lerpPose } from "./rig/poseDriver";
 import { resolvePoseCollisions } from "./rig/collision";
 import type { Pose, Rig } from "./rig/poseDriver";
@@ -8,18 +9,41 @@ import type { MoveId } from "./rig/moves";
 import { MMA_MOVES, mmaPoseFor } from "./rig/mmaMoves";
 import { MODELS } from "./rig/manifest";
 import { buildVoxelPuppet } from "./rig/voxelPuppet";
+import type { PuppetSpec } from "./rig/voxelPuppet";
+import { DUO, DUO_DEFAULT } from "./rig/duo";
 
 /* ════════════════════════════════════════════════════════════════
    ARENA RIG LAB — banco de pruebas del motor de animación.
    Todos los personajes son pieles de la marioneta voxel y todas
    las animaciones son PROCEDURALES (nuestra biblioteca de poses).
    Elige personaje → elige movimiento. Base compartida de LUDUS y MMA.
+   Modo DUELO: un rival enfrente ejecutando la respuesta coreografiada
+   (src/rig/duo.ts). Cámara orbital: arrastra para girar, rueda = zoom.
    ════════════════════════════════════════════════════════════════ */
 
 interface Loaded {
   rig: Rig | null;
-  mixer: THREE.AnimationMixer;
   snapshot: Map<THREE.Object3D, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }>;
+}
+
+interface Fighter {
+  root: THREE.Object3D;
+  loaded: Loaded;
+  prev: Pose;
+  baseY: number;      // altura de apoyo (pies en el suelo)
+  rotY: number;       // orientación base en solitario
+}
+
+/** Piel del RIVAL: misma base pero distinguida (MMA: shorts azules y
+    guantes rojos; LUDUS: armadura de acero en vez de bronce) */
+function rivalSpec(spec?: PuppetSpec): PuppetSpec {
+  if (!spec) return { torso: 0x51606e, pants: 0x33404e, feet: 0x2b2724 };
+  const r = { ...spec };
+  if (spec.gloves !== undefined) { r.pants = 0x2a4ab0; r.gloves = 0x8c2f2f; }
+  if (spec.helmet !== undefined) {
+    r.helmet = 0x8a8f96; r.chestPlate = 0x9aa0a8; r.shoulderPads = 0x8a8f96; r.skirt = 0x45403a;
+  }
+  return r;
 }
 
 export default function App() {
@@ -30,12 +54,15 @@ export default function App() {
   const [moveSet, setMoveSet] = useState<"comun" | "pie" | "suelo">(
     qSet === "pie" || qSet === "suelo" ? qSet : qSet === "mma" ? "pie" : "comun");
   const [move, setMove] = useState<string>(q.get("move") || "guardia");
+  const [duo, setDuo] = useState(q.get("duo") === "1");
   const [status, setStatus] = useState("Cargando…");
 
   const modelRef = useRef(modelId); modelRef.current = modelId;
   const setRef = useRef(moveSet); setRef.current = moveSet;
   const moveRef = useRef(move); moveRef.current = move;
-  // &t=1.23 congela el reloj procedural · &ry=2.1 anula rotationY (depuración / capturas)
+  const duoRef = useRef(duo); duoRef.current = duo;
+  // &t=1.23 congela el reloj procedural · &ry=2.1: en solitario anula
+  // rotationY del modelo; en duelo fija el acimut de la cámara (capturas)
   const tFreeze = useRef<number | null>(q.get("t") !== null ? parseFloat(q.get("t")!) : null);
   const ryOverride = useRef<number | null>(q.get("ry") !== null ? parseFloat(q.get("ry")!) : null);
   // &collide=0 desactiva el detector de colisiones (comparar antes/después)
@@ -60,6 +87,15 @@ export default function App() {
     camera.position.set(0, 1.7, 4.6);
     camera.lookAt(0, 0.95, 0);
 
+    // cámara ORBITAL: arrastrar gira, rueda acerca, botón derecho desplaza
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.9, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 1.2;
+    controls.maxDistance = 12;
+    controls.maxPolarAngle = Math.PI * 0.52;
+
     scene.add(new THREE.AmbientLight(0x8a7a68, 1.1));
     const sun = new THREE.DirectionalLight(0xfff0d8, 2.0);
     sun.position.set(5, 8, 4);
@@ -82,41 +118,61 @@ export default function App() {
     grid.position.y = 0.01;
     scene.add(grid);
 
-    let current: { root: THREE.Object3D; loaded: Loaded; prev: Pose } | null = null;
+    let attacker: Fighter | null = null;
+    let rival: Fighter | null = null;
+    let duoActive = false;
     let loading = false;
 
-    const loadModel = (id: string) => {
+    const buildFighter = (id: string, spec?: PuppetSpec): Fighter => {
       const f = MODELS.find((m) => m.id === id)!;
-      loading = true;
-      setStatus(`Cargando ${f.label}…`);
-      if (current) { scene.remove(current.root); current = null; }
-      // marioneta propia: 15 bloques rígidos sobre bisagras, sin skinning.
-      // La ficha solo aporta la piel (spec); rig y animaciones son comunes.
-      const model = buildVoxelPuppet(f.spec);
-      model.userData.modelId = id;
+      const model = buildVoxelPuppet(spec ?? f.spec);
       model.updateMatrixWorld(true);
       const bbox = new THREE.Box3().setFromObject(model);
       const h = Math.max(0.001, bbox.max.y - bbox.min.y);
       const s = f.targetHeight / h;
       model.scale.setScalar(s);
-      model.position.y = -bbox.min.y * s;
-      model.rotation.y = ryOverride.current ?? f.rotationY;
+      const baseY = -bbox.min.y * s;
+      model.position.y = baseY;
+      model.rotation.y = f.rotationY;
       model.traverse((o) => { o.castShadow = true; });
       scene.add(model);
-      const mixer = new THREE.AnimationMixer(model);
       const rig = findRig(model);
       const snapshot = new Map<THREE.Object3D, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }>();
       model.traverse((o) => snapshot.set(o, { p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }));
-      current = { root: model, loaded: { rig, mixer, snapshot }, prev: clonePose(GUARD) };
+      return { root: model, loaded: { rig, snapshot }, prev: clonePose(GUARD), baseY, rotY: f.rotationY };
+    };
+
+    const loadModel = (id: string) => {
+      const f = MODELS.find((m) => m.id === id)!;
+      loading = true;
+      setStatus(`Cargando ${f.label}…`);
+      if (attacker) { scene.remove(attacker.root); attacker = null; }
+      if (rival) { scene.remove(rival.root); rival = null; }
+      // marioneta propia: 15 bloques rígidos sobre bisagras, sin skinning.
+      // La ficha solo aporta la piel (spec); rig y animaciones son comunes.
+      attacker = buildFighter(id);
+      attacker.root.userData.modelId = id;
+      duoActive = duoRef.current;
+      if (duoActive) {
+        rival = buildFighter(id, rivalSpec(f.spec));
+        // en duelo la cámara nace en esquina: se ven los dos perfiles
+        camera.position.set(3.4, 1.9, 3.6);
+        controls.target.set(0, 0.8, 0);
+      } else {
+        camera.position.set(0, 1.7, 4.6);
+        controls.target.set(0, 0.9, 0);
+      }
+      controls.update();
       loading = false;
-      setStatus(rig
-        ? `${f.autor} — rig "${rig.profile}" detectado`
+      setStatus(attacker.loaded.rig
+        ? `${f.autor} — rig "${attacker.loaded.rig.profile}" detectado${duoActive ? " · RIVAL en escena" : ""}`
         : `${f.autor} — ¡rig NO reconocido!`);
     };
 
     loadModel(modelRef.current);
     const watcher = setInterval(() => {
-      if (!loading && current && current.root.userData.modelId !== modelRef.current) {
+      if (loading || !attacker) return;
+      if (attacker.root.userData.modelId !== modelRef.current || duoActive !== duoRef.current) {
         loadModel(modelRef.current);
       }
     }, 200);
@@ -130,7 +186,7 @@ export default function App() {
         const dt = clock.getDelta();
         void dt;
         const t = tFreeze.current ?? (performance.now() - t0) / 1000;
-        if (current && current.loaded.rig) {
+        if (attacker && attacker.loaded.rig) {
           let target: Pose;
           // pose de calibración: brazo derecho al frente — debe apuntar a cámara
           if (moveRef.current === "test-frente") target = { ...clonePose(GUARD), twist: 0, uaR: [-1.55, 0, 0], faR: -0.05, uaL: [-0.2, 0, -0.1], faL: -0.3 };
@@ -141,8 +197,54 @@ export default function App() {
           // de la pose objetivo antes del lerp → determinista, sin parpadeo
           if (collideOn.current) target = resolvePoseCollisions(target);
           // con reloj congelado (&t=) la pose se aplica directa, sin suavizado
-          current.prev = tFreeze.current !== null ? target : lerpPose(current.prev, target, 0.4);
-          applyPose(current.loaded.rig, current.prev);
+          attacker.prev = tFreeze.current !== null ? target : lerpPose(attacker.prev, target, 0.4);
+          applyPose(attacker.loaded.rig, attacker.prev);
+
+          // ─── disposición de escena ───
+          const cfg = DUO[moveRef.current] ?? DUO_DEFAULT;
+          if (rival) {
+            const mode = cfg.mode ?? "face";
+            if (mode === "face") {
+              const d = (cfg.dist ?? 1.1) / 2;
+              attacker.root.position.set(0, attacker.baseY, d);
+              attacker.root.rotation.y = Math.PI;
+              rival.root.position.set(0, rival.baseY, -d);
+              rival.root.rotation.y = 0;
+            } else if (mode === "ground") {
+              // top = arriba (de pie/su rodillas dominando); bottom = tumbado
+              const aTop = cfg.top !== false;
+              attacker.root.position.set(0, attacker.baseY, aTop ? 0.42 : -0.3);
+              attacker.root.rotation.y = aTop ? Math.PI : 0;
+              rival.root.position.set(0, rival.baseY, aTop ? -0.3 : 0.42);
+              rival.root.rotation.y = aTop ? 0 : Math.PI;
+            } else { // behind: los dos miran a +Z, atacante detrás
+              attacker.root.position.set(0, attacker.baseY, -0.42);
+              attacker.root.rotation.y = 0;
+              rival.root.position.set(0, rival.baseY, 0.18);
+              rival.root.rotation.y = 0;
+            }
+
+            // reacción del rival: reloj escalado pD/pA para ir A LA PAR
+            if (rival.loaded.rig) {
+              const pA = cfg.pA ?? 0, pD = cfg.pD ?? 0;
+              const tB = pA > 0 && pD > 0 ? t * (pD / pA) : t;
+              let targetB = setRef.current === "comun" ? mmaPoseFor("guardia-mma", t) : mmaPoseFor(cfg.def, tB);
+              if (collideOn.current) targetB = resolvePoseCollisions(targetB);
+              rival.prev = tFreeze.current !== null ? targetB : lerpPose(rival.prev, targetB, 0.4);
+              applyPose(rival.loaded.rig, rival.prev);
+            }
+          } else {
+            attacker.root.position.set(0, attacker.baseY, 0);
+            attacker.root.rotation.y = ryOverride.current ?? attacker.rotY;
+          }
+        }
+        // &ry= en duelo: cámara fija en ese acimut (capturas deterministas)
+        if (rival && ryOverride.current !== null) {
+          const ry = ryOverride.current, R = 4.9;
+          camera.position.set(Math.sin(ry) * R, 1.9, Math.cos(ry) * R);
+          camera.lookAt(0, 0.85, 0);
+        } else {
+          controls.update();
         }
         renderer.render(scene, camera);
       } catch (err) {
@@ -163,6 +265,7 @@ export default function App() {
       clearInterval(watcher);
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", resize);
+      controls.dispose();
       renderer.dispose();
       el.removeChild(renderer.domElement);
     };
@@ -175,13 +278,20 @@ export default function App() {
         <p className="text-[11px] text-stone-400">
           Motor de animación compartido · LUDUS ⚔ MMA — {status}
         </p>
+        <p className="text-[10px] text-stone-500">🖱️ arrastra = girar cámara · rueda = zoom · botón derecho = desplazar</p>
       </div>
 
       <div ref={ref} className="flex-1 min-h-0" />
 
       <div className="p-3 bg-black/40 border-t border-stone-700/50 space-y-2">
         <div className="space-y-1">
-          <p className="text-[10px] uppercase text-stone-500 font-bold">Personaje</p>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] uppercase text-stone-500 font-bold">Personaje</p>
+            <button onClick={() => setDuo(!duo)}
+              className={`py-1 px-3 rounded text-[11px] font-black ${duo ? "bg-red-500 text-black" : "bg-stone-800"}`}>
+              {duo ? "🆚 RIVAL: ON" : "🆚 RIVAL: OFF"}
+            </button>
+          </div>
           <div className="grid grid-cols-3 gap-1">
             {MODELS.map((m) => (
               <button key={m.id} onClick={() => setModelId(m.id)}
