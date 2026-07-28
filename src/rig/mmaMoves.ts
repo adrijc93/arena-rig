@@ -10,6 +10,7 @@ import type { Pose } from "./poseDriver";
 
 export type MmaMoveId =
   | "guardia-mma" | "esquiva"
+  | "parada" | "retirada" | "cobertura" | "bloqueo-alto" | "bloqueo-cuerpo" | "chequeo"
   | "jab" | "cross" | "hook" | "uppercut" | "overhand" | "gancho-cuerpo" | "superman" | "backfist"
   | "codo" | "codo-giro"
   | "low-kick" | "patada-cuerpo" | "circular" | "frontal" | "lateral" | "switch" | "rodilla" | "rodilla-voladora"
@@ -23,6 +24,12 @@ export const MMA_MOVES: { id: MmaMoveId; label: string; seccion: MmaSeccion; gru
   // ─── EN PIE ───
   { id: "guardia-mma", label: "Guardia MMA", seccion: "pie", grupo: "Guardia" },
   { id: "esquiva", label: "Esquiva (slip)", seccion: "pie", grupo: "Guardia" },
+  { id: "parada", label: "Parada (parry)", seccion: "pie", grupo: "Defensas" },
+  { id: "retirada", label: "Retirada (pull)", seccion: "pie", grupo: "Defensas" },
+  { id: "cobertura", label: "Cobertura (shell)", seccion: "pie", grupo: "Defensas" },
+  { id: "bloqueo-alto", label: "Bloqueo patada alta", seccion: "pie", grupo: "Defensas" },
+  { id: "bloqueo-cuerpo", label: "Bloqueo patada al cuerpo", seccion: "pie", grupo: "Defensas" },
+  { id: "chequeo", label: "Chequeo de low kick", seccion: "pie", grupo: "Defensas" },
   { id: "jab", label: "Jab", seccion: "pie", grupo: "Puños" },
   { id: "cross", label: "Directo (cross)", seccion: "pie", grupo: "Puños" },
   { id: "hook", label: "Gancho (hook)", seccion: "pie", grupo: "Puños" },
@@ -87,6 +94,96 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.twist = 0.35 + k * 0.3;
       p.headX = 0.08 + Math.abs(k) * 0.1;
       p.bob = -Math.abs(k) * 0.05;
+      return p;
+    }
+
+    /* ───────────── DEFENSAS ───────────── */
+    case "parada": {
+      // parry con la DERECHA contra el jab rival: toque corto adelante-abajo
+      // que desvía el golpe justo antes de que llegue; la cabeza sale de la
+      // línea y el cuerpo queda listo para el contragolpe
+      const u = cyc(t, 1.2);
+      const k = u < 0.2 ? easeOut(u / 0.2) : u < 0.4 ? 1 : 1 - easeIn((u - 0.4) / 0.6);
+      p.uaR = [-1.0 - k * 0.35, 0, 0.3 + k * 0.05];
+      p.faR = -2.0 + k * 1.3;                       // la mano sale a tocar el golpe
+      p.twist = 0.35 - k * 0.15;                    // se aparta ligeramente
+      p.headY = -k * 0.2;
+      p.bob = -k * 0.02;
+      return p;
+    }
+
+    case "retirada": {
+      // pull counter: la cabeza y el pecho se echan ATRÁS fuera de la línea
+      // del golpe, el peso cae sobre la pierna trasera — y vuelve al instante
+      const u = cyc(t, 1.2);
+      const k = u < 0.25 ? easeOut(u / 0.25) : u < 0.45 ? 1 : 1 - easeIn((u - 0.45) / 0.55);
+      p.lean = 0.1 - k * 0.3;                       // torso atrás
+      p.headX = 0.08 - k * 0.18;                    // la cabeza se quita del camino
+      p.hipsX = -k * 0.08;
+      p.bob = -k * 0.04;
+      p.shR = 0.3 + k * 0.15;                       // carga la pierna trasera
+      return p;
+    }
+
+    case "cobertura": {
+      // shell: guantes PEGADOS a las sienes, codos cerrados al cuerpo, bajo
+      // la lluvia de golpes — compacto, aguantando, con pequeñas sacudidas
+      const flinch = Math.max(0, Math.sin(t * 4.5));
+      p.uaR = [-1.2, -0.15, 0.0]; p.faR = -2.4;     // antebrazos verticales sellando la cara
+      p.uaL = [-1.2, 0.15, 0.0]; p.faL = -2.4;
+      p.bob = -0.05 - flinch * 0.03;
+      p.shL = 0.4; p.shR = 0.35;                    // base cargada
+      p.lean = 0.15 + flinch * 0.05;
+      p.headX = 0.15;                               // mentón abajo
+      return p;
+    }
+
+    case "bloqueo-alto": {
+      // bloqueo de la circular alta: el antebrazo DERECHO sube vertical junto
+      // a la sien (el "escudo"), el cuerpo se compacta y el impacto lo empuja
+      const u = cyc(t, 1.4);
+      const k = u < 0.25 ? easeOut(u / 0.25) : 1 - easeIn((u - 0.25) / 0.75);
+      const hit = u > 0.3 && u < 0.45 ? Math.sin((u - 0.3) / 0.15 * Math.PI) : 0; // sacudida
+      p.uaR = [-1.45 - k * 0.05, -0.35, -0.1]; p.faR = -2.5; // antebrazo vertical en la sien
+      p.bob = -k * 0.04 - hit * 0.02;
+      p.tx = -hit * 0.05;                           // el impacto lo desplaza de lado
+      p.hipsZ = -hit * 0.15;
+      p.lean = 0.1 + k * 0.05;
+      p.twist = 0.35 - k * 0.1;                     // se compacta detrás del escudo
+      p.headX = 0.1;
+      return p;
+    }
+
+    case "bloqueo-cuerpo": {
+      // bloqueo de la patada al cuerpo: el codo DERECHO baja pegado a las
+      // costillas y el antebrazo cubre el costado; recibe girando hacia la patada
+      const u = cyc(t, 1.4);
+      const k = u < 0.25 ? easeOut(u / 0.25) : 1 - easeIn((u - 0.25) / 0.75);
+      const hit = u > 0.3 && u < 0.45 ? Math.sin((u - 0.3) / 0.15 * Math.PI) : 0;
+      p.uaR = [-0.45 - k * 0.15, 0, 0.35];          // brazo bajo, codo pegado al cuerpo
+      p.faR = -1.1;                                 // antebrazo cubre el costado
+      p.twist = 0.35 + k * 0.15;                    // se gira un pelín hacia la patada
+      p.bob = -k * 0.03 - hit * 0.02;
+      p.hipsZ = hit * 0.1;
+      p.lean = 0.1 + k * 0.08;
+      return p;
+    }
+
+    case "chequeo": {
+      // check de la low kick: la espinilla ADELANTADA sube como escudo
+      // (rodilla alta, punta del pie abajo, recibiendo con el peroné) y las
+      // caderas giran hacia la patada; las manos no bajan de la guardia
+      const u = cyc(t, 1.4);
+      const k = u < 0.22 ? easeOut(u / 0.22) : u < 0.5 ? 1 : 1 - easeIn((u - 0.5) / 0.5);
+      const hit = u > 0.28 && u < 0.42 ? Math.sin((u - 0.28) / 0.14 * Math.PI) : 0;
+      p.thL = -0.22 - k * 1.0;                      // rodilla izquierda sube
+      p.thLY = k * 0.25;                            // apunta fuera: recibe con el peroné
+      p.shL = 0.35 + k * 1.5;                       // espinilla recogida = escudo
+      p.bob = -k * 0.03 + hit * 0.02;
+      p.hipsY = -k * 0.2;                           // gira hacia la patada
+      p.twist = 0.35 - k * 0.15;
+      p.uaL = [-1.1 - k * 0.15, -0.2, -0.05];       // manos firmes en guardia
+      p.thR = 0.18; p.shR = 0.35 + k * 0.05;        // apoyo cargado
       return p;
     }
 
@@ -272,11 +369,11 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.twist = 0.35 + wind * 0.45 - spin * 1.5;   // atrás → hombro IZQUIERDO barre adelante
       p.hipsY = wind * 0.1 - spin * 0.55;
       p.uaL = [
-        -1.1 + wind * 0.25 - spin * 0.6,           // desenrolla a la ALTURA DE LA CABEZA
+        -1.1 + wind * 0.25 - spin * 0.65,          // desenrolla HORIZONTAL a la altura de la cabeza
         -0.2,
         -0.05 + wind * 0.5 - spin * 1.1,           // recogido → barre cruzando al frente
       ];
-      p.faL = -2.05 + spin * 1.85;                 // se desenrolla casi extendido
+      p.faL = -2.05 + spin * 1.95;                 // se desenrolla casi extendido
       p.lean = 0.1 + spin * 0.05;
       p.bob = -wind * 0.04;
       p.uaR = [-1.0, 0, 0.3]; p.faR = -2.0;        // la derecha protege la cara
@@ -371,7 +468,8 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.thRY = Math.max(0, k) * 0.5;
       p.shR = 0.3 - Math.max(0, k) * 0.22;               // extendida en el impacto
       p.hipsY = Math.max(0, k) * 0.55;                 // cadera derecha atraviesa
-      p.twist = 0.35 - Math.max(0, k) * 0.7;           // hombros contrarrotan
+      p.twist = 0.35 - Math.abs(k) * 0.4;              // hombros: cargan atrás y ACOMPAÑAN
+                                                       // con retraso (la cadera lidera), como la low kick
       p.lean = 0.1 - Math.max(0, k) * 0.4;
       p.uaR = [-0.6, 0, 0.8]; p.faR = -1.2;
       p.uaL = [-1.1, -0.2, -0.05]; p.faL = -2.0;
@@ -404,7 +502,7 @@ export function mmaPoseFor(id: string, t: number): Pose {
       const ext = u < 0.35 ? 0 : u < 0.55 ? easeOut((u - 0.35) / 0.2) : u < 0.7 ? 1 : 1 - easeIn((u - 0.7) / 0.3); // extensión
       p.thR = 0.18 - ch * 1.1 - ext * 0.5;             // rodilla alta → pierna casi HORIZONTAL al extender
       p.thRY = -ch * 0.5 + ext * 0.3;                  // de lado en la cámara → alinea al extender
-      p.shR = 0.3 + ch * 1.3 - ext * 1.55;             // recogida fuerte → extensión total
+      p.shR = 0.3 + ch * 1.4 - ext * 1.65;             // cámara MUY recogida → extensión total (contraste)
       p.hipsY = ch * 0.5;                              // cadera de perfil
       p.twist = 0.35 + ch * 0.2 - ext * 0.1;           // pecho de perfil que acompaña
       p.lean = 0.1 - ext * 0.35;                       // se echa atrás al extender
@@ -463,14 +561,15 @@ export function mmaPoseFor(id: string, t: number): Pose {
       const fly = u < 0.3 ? 0 : u < 0.55 ? easeOut((u - 0.3) / 0.25) : u < 0.7 ? 1 : 1 - easeIn((u - 0.7) / 0.3);
       p.bob = -run * 0.08 + fly * 0.3;                     // carga abajo → despega ALTO
       p.tz = fly * 0.35;                                   // vuela hacia el objetivo
-      p.thR = 0.18 - fly * 1.7;                            // rodilla al pecho y más
-      p.shR = 0.3 + fly * 1.9;                             // pierna recogida a tope
+      p.thR = 0.18 - fly * 1.75;                           // rodilla al pecho y más
+      p.thRY = fly * 0.25;                                 // apunta al centro: sobresale del torso
+      p.shR = 0.3 + fly * 1.95;                            // pierna recogida a tope
       p.thL = -0.22 + fly * 0.5;                           // la de apoyo queda atrás en el aire
-      p.shL = 0.35 + fly * 0.3;
-      p.lean = 0.1 + fly * 0.15;
+      p.shL = 0.35 + fly * 0.4;
+      p.lean = 0.1 - fly * 0.05;                           // torso erguido, la cadera empuja al frente
       p.hipsY = fly * 0.15;
-      p.uaR = [-1.0 + fly * 1.1, 0, 0.3]; p.faR = -2.0;    // brazos tiran hacia atrás
-      p.uaL = [-1.1 + fly * 1.1, -0.2, -0.05]; p.faL = -2.05;
+      p.uaR = [-1.0 + fly * 1.3, 0, 0.3 + fly * 0.2]; p.faR = -2.0 + fly * 0.6; // tira atrás-abajo
+      p.uaL = [-1.1 + fly * 0.6, -0.2, -0.05]; p.faL = -2.05; // la otra queda alta
       return p;
     }
 
