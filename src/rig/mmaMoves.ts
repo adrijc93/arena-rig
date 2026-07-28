@@ -89,7 +89,10 @@ export function mmaPoseFor(id: string, t: number): Pose {
       else ext = 1 - easeIn((u - 0.45) / 0.55);         // vuelve
       p.uaL = [-1.1 - ext * 0.5, -0.2 + ext * 0.2, -0.05];
       p.faL = -2.05 + ext * 1.95;                       // brazo se estira
-      p.twist = 0.35 + ext * 0.18;
+      // el hombro IZQUIERDO atraviesa con el golpe (twist/hipsY negativos):
+      // cuerpo y brazo avanzan juntos, como en el boxeo real
+      p.twist = 0.35 - ext * 0.3;
+      p.hipsY = -ext * 0.08;
       p.bob = ext * 0.03;
       p.lean = 0.1 + ext * 0.08;
       return p;
@@ -103,8 +106,10 @@ export function mmaPoseFor(id: string, t: number): Pose {
       else ext = 1 - easeIn((u - 0.5) / 0.5);
       p.uaR = [-1.0 - ext * 0.58, 0, 0.3 - ext * 0.28];
       p.faR = -2.0 + ext * 1.92;
-      p.twist = 0.35 - ext * 0.75;                      // la cadera gira con el golpe
-      p.hipsY = -ext * 0.22;
+      // la cadera y el hombro DERECHO atraviesan con el golpe (rotación grande:
+      // el cross nace del pie trasero y termina con el cuerpo casi de frente)
+      p.twist = 0.35 + ext * 0.7;
+      p.hipsY = ext * 0.25;
       p.lean = 0.1 + ext * 0.12;
       p.bob = ext * 0.03;
       return p;
@@ -115,8 +120,9 @@ export function mmaPoseFor(id: string, t: number): Pose {
       const s = u < 0.4 ? easeOut(u / 0.4) : 1 - easeIn((u - 0.4) / 0.6);
       p.uaL = [-1.25, -0.2 + s * 1.0, -0.05];           // arco circular
       p.faL = -1.55;                                     // codo a 90°
-      p.twist = 0.35 + s * 0.55;
-      p.hipsY = s * 0.15;
+      // como en el jab: el hombro izquierdo gira hacia adelante con el arco
+      p.twist = 0.35 - s * 0.5;
+      p.hipsY = -s * 0.12;
       p.lean = 0.1 + s * 0.08;
       p.uaR = [-1.0, 0, 0.3]; p.faR = -2.0;             // la otra protege
       return p;
@@ -130,7 +136,9 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.lean = 0.1 + dip * 0.25 - up * 0.15;
       p.uaR = [-1.0 + dip * 0.5 - up * 0.85, 0, 0.25];
       p.faR = -2.0 + up * 0.3;                          // sube con el codo cerrado
-      p.twist = 0.35 - up * 0.45;
+      // como en el cross: cadera y hombro derecho impulsan hacia arriba/adelante
+      p.twist = 0.35 + up * 0.4;
+      p.hipsY = up * 0.12;
       return p;
     }
 
@@ -156,8 +164,8 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.bob = -step * 0.03 - whip * 0.03;
       p.thR = 0.18 - whip * 1.35;                      // la espinilla cruza el objetivo
       p.shR = 0.55 - whip * 0.45;                      // semidoblada → extiende al contacto
-      p.hipsY = -whip * 0.55;                          // rotación completa de cadera
-      p.twist = 0.35 - whip * 0.7;
+      p.hipsY = whip * 0.55;                           // la cadera DERECHA atraviesa (giro completo)
+      p.twist = 0.35 - whip * 0.7;                     // hombros contrarrotan: equilibrio
       p.lean = 0.1 - whip * 0.3;                       // se echa atrás al patear
       p.hipsZ = whip * 0.18;                           // cae hacia el lado de apoyo
       p.ankL = [0, whip * 0.6, 0];                     // ¡pivote del pie de apoyo!
@@ -178,8 +186,8 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.thR = 0.18 - Math.max(0, k) * 1.75;              // alto
       p.thRY = Math.max(0, k) * 0.5;
       p.shR = 0.3 - Math.max(0, k) * 0.22;               // extendida en el impacto
-      p.hipsY = Math.max(0, k) * -0.55;
-      p.twist = 0.35 - Math.max(0, k) * 0.7;
+      p.hipsY = Math.max(0, k) * 0.55;                   // cadera derecha atraviesa
+      p.twist = 0.35 - Math.max(0, k) * 0.7;             // hombros contrarrotan
       p.lean = 0.1 - Math.max(0, k) * 0.4;
       p.uaR = [-0.6, 0, 0.8]; p.faR = -1.2;
       p.uaL = [-1.1, -0.2, -0.05]; p.faL = -2.0;
