@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { BVHLoader } from "three/examples/jsm/loaders/BVHLoader.js";
 import { applyPose, clonePose, findRig, GUARD, lerpPose, mirrorPose } from "./rig/poseDriver";
 import type { Pose, Rig } from "./rig/poseDriver";
@@ -14,16 +13,16 @@ import { buildVoxelPuppet } from "./rig/voxelPuppet";
 
 /* ════════════════════════════════════════════════════════════════
    ARENA RIG LAB — banco de pruebas del motor de animación.
-   Elige modelo → elige driver (nuestro procedural o clips mocap)
-   → elige movimiento. Base compartida de LUDUS y el proyecto MMA.
+   Todos los personajes son pieles de la marioneta voxel.
+   Elige personaje → elige driver (poses procedurales o mocap CMU
+   horneado) → elige movimiento. Base compartida de LUDUS y MMA.
    ════════════════════════════════════════════════════════════════ */
 
-type Driver = "procedural" | "mocap" | "baked";
+type Driver = "procedural" | "baked";
 
 interface Loaded {
   rig: Rig | null;
   mixer: THREE.AnimationMixer;
-  actions: Record<string, THREE.AnimationAction>;
   snapshot: Map<THREE.Object3D, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }>;
 }
 
@@ -44,16 +43,12 @@ export default function App() {
   const ref = useRef<HTMLDivElement>(null);
   const q = new URLSearchParams(window.location.search);
   const [modelId, setModelId] = useState(q.get("model") ?? MODELS[0].id);
-  const [driver, setDriver] = useState<Driver>(
-    q.get("driver") === "mocap" ? "mocap" : q.get("driver") === "baked" ? "baked" : "procedural");
+  const [driver, setDriver] = useState<Driver>(q.get("driver") === "baked" ? "baked" : "procedural");
   const qSet = q.get("set");
   const [moveSet, setMoveSet] = useState<"comun" | "pie" | "suelo">(
     qSet === "pie" || qSet === "suelo" ? qSet : qSet === "mma" ? "pie" : "comun");
   const [move, setMove] = useState<string>(q.get("move") || "guardia");
-  const [clip, setClip] = useState(q.get("clip") ?? "Idle_Loop");
-  // clips disponibles: se AUTODESCUBREN del archivo al cargar (así un pack
-  // nuevo, p.ej. UAL Pro, aparece entero sin tocar código)
-  const [clipsAvail, setClipsAvail] = useState<string[]>(() => MODELS.find((m) => m.id === (q.get("model") ?? MODELS[0].id))!.clips);
+  const [clip, setClip] = useState(q.get("clip") ?? "cmu/13_17.bvh");
   const [mirror, setMirror] = useState(q.get("mirror") === "1"); // espejo zurdo (driver horneado)
   const [status, setStatus] = useState("Cargando…");
 
@@ -109,11 +104,10 @@ export default function App() {
     grid.position.y = 0.01;
     scene.add(grid);
 
-    let current: { root: THREE.Object3D; loaded: Loaded; action: THREE.AnimationAction | null; prev: Pose } | null = null;
+    let current: { root: THREE.Object3D; loaded: Loaded; prev: Pose } | null = null;
     let loading = false;
-    const bakedCache = new Map<string, BakedClip>(); // "modelo:clip" → frames horneados
     /* mocap CMU: se carga el BVH, se detecta su rig y se hornea a Poses con
-       referencia = postura del fotograma 0 (casa con el idle del maniquí).
+       referencia = postura del fotograma 0 (casa con el reposo del muñeco).
        SIN snapshot de neutralización: los huesos no mapeados (LHipJoint,
        Neck1, dedos…) se ABSORBEN en el Δ del padre mapeado → más fidelidad. */
     interface CmuEntry {
@@ -136,8 +130,8 @@ export default function App() {
         // medirla en el primer fotograma (cadera a su altura real de pie).
         action.play(); mixerCmu.update(0);
         // Referencia de rotación = POSTURA del fotograma 0 (guardia natural
-        // de pie), NO el cero del archivo: así casa con el rest calibrado del
-        // maniquí (idle, piernas abiertas) y no quedan offsets en cadera/piernas.
+        // de pie), NO el cero del archivo: así casa con el reposo del muñeco
+        // (de pie, brazos abajo) y no quedan offsets en cadera/piernas.
         rigCmu.rest.forEach((_, b) => rigCmu.rest.set(b, b.quaternion.clone()));
         rigCmu.hipsBaseX = root.position.x;
         rigCmu.hipsBaseY = root.position.y;
@@ -158,7 +152,7 @@ export default function App() {
         const bc = bakeClip(rigCmu, mixerCmu, action, 30);
         removeDrift(bc); // el boxeo recorre metros: lo dejamos en el sitio
         // referencia visual: el esqueleto BVH crudo a la izquierda (&skel=1),
-        // escalado a la altura del maniquí, con su propio mixer independiente
+        // escalado a la altura del muñeco, con su propio mixer independiente
         g.visible = false;
         scene.add(g);
         // el helper DIBUJA las posiciones de mundo de los huesos: debe colgar
@@ -177,104 +171,28 @@ export default function App() {
       loading = true;
       setStatus(`Cargando ${f.label}…`);
       if (current) { scene.remove(current.root); current = null; }
-      if (f.voxel) {
-        // marioneta propia: 15 bloques rígidos sobre bisagras, sin skinning.
-        // Mismo pipeline que un GLTF: escala a targetHeight, findRig, snapshot.
-        const model = buildVoxelPuppet();
-        model.userData.modelId = id;
-        model.updateMatrixWorld(true);
-        const bbox = new THREE.Box3().setFromObject(model);
-        const h = Math.max(0.001, bbox.max.y - bbox.min.y);
-        const s = f.targetHeight / h;
-        model.scale.setScalar(s);
-        model.position.y = -bbox.min.y * s;
-        model.rotation.y = ryOverride.current ?? f.rotationY;
-        model.traverse((o) => { o.castShadow = true; });
-        scene.add(model);
-        const mixer = new THREE.AnimationMixer(model);
-        const rig = findRig(model);
-        const snapshot = new Map<THREE.Object3D, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }>();
-        model.traverse((o) => snapshot.set(o, { p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }));
-        current = { root: model, loaded: { rig, mixer, actions: {}, snapshot }, action: null, prev: clonePose(GUARD) };
-        loading = false;
-        setClipsAvail([]);
-        setStatus(rig
-          ? `${f.autor} — rig "${rig.profile}" detectado (poses procedurales)`
-          : `${f.autor} — ¡rig NO reconocido!`);
-        return;
-      }
-      new GLTFLoader().load(f.file, (gltf) => {
-        const model = gltf.scene;
-        model.userData.modelId = id;
-        f.hide.forEach((n) => model.traverse((o) => { if (o.name === n || o.name === n.replace(/\./g, "")) o.visible = false; }));
-        model.updateMatrixWorld(true);
-        // escala automática a la altura objetivo
-        const bbox = new THREE.Box3();
-        const tb = new THREE.Box3();
-        model.traverse((o) => {
-          if ((o as THREE.SkinnedMesh).isSkinnedMesh || ((o as THREE.Mesh).isMesh && o.visible)) {
-            tb.setFromObject(o);
-            if (!tb.isEmpty()) bbox.union(tb);
-          }
-        });
-        const h = Math.max(0.001, bbox.max.y - bbox.min.y);
-        const s = f.targetHeight / h;
-        model.scale.setScalar(s);
-        model.position.y = -bbox.min.y * s;
-        model.rotation.y = ryOverride.current ?? f.rotationY;
-        model.traverse((o) => {
-          o.castShadow = true;
-          if ((o as THREE.SkinnedMesh).isSkinnedMesh) o.frustumCulled = false;
-        });
-        scene.add(model);
-
-        const mixer = new THREE.AnimationMixer(model);
-        const actions: Record<string, THREE.AnimationAction> = {};
-        gltf.animations.forEach((c) => { actions[c.name] = mixer.clipAction(c); });
-        let rig: Rig | null = null;
-        let done = false;
-        const finish = () => {
-          if (done) return;
-          done = true;
-          // calibración: si el bind pose es A-pose/T-pose, usar el primer
-          // fotograma del clip de idle como pose base (brazos abajo).
-          // Se restauran las posiciones después (los clips traen root motion).
-          let saved: Map<THREE.Object3D, { p: THREE.Vector3; s: THREE.Vector3 }> | null = null;
-          if (f.calibrateClip && actions[f.calibrateClip]) {
-            saved = new Map();
-            model.traverse((o) => saved!.set(o, { p: o.position.clone(), s: o.scale.clone() }));
-            actions[f.calibrateClip].play();
-            mixer.update(0.05);
-          }
-          rig = findRig(model);
-          if (f.calibrateClip && actions[f.calibrateClip]) {
-            actions[f.calibrateClip].stop();
-            saved!.forEach((v, o) => { o.position.copy(v.p); o.scale.copy(v.s); });
-            if (rig) rig.hipsBaseY = rig.hips.position.y;
-          }
-          // foto completa del estado calibrado: el horno vuelve aquí tras muestrear
-          const snapshot = new Map<THREE.Object3D, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }>();
-          model.traverse((o) => snapshot.set(o, { p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }));
-          current = { root: model, loaded: { rig, mixer, actions, snapshot }, action: null, prev: clonePose(GUARD) };
-          loading = false;
-          setClipsAvail(Object.keys(actions)); // autodescubrir clips del archivo
-          setStatus(rig
-            ? `${f.autor} — rig "${rig.profile}" detectado (${Object.keys(actions).length} clips)`
-            : `${f.autor} — ¡rig NO reconocido! solo clips`);
-        };
-        if (f.clipSource) {
-          // los clips viven en otro archivo con el mismo rig (p.ej. Mannequin_F ← UAL2)
-          new GLTFLoader().load(f.clipSource, (g2) => {
-            g2.animations.forEach((c) => { actions[c.name] = mixer.clipAction(c); });
-            finish();
-          }, undefined, () => finish());
-        } else {
-          finish();
-        }
-      }, undefined, () => {
-        loading = false;
-        setStatus("Error cargando el modelo");
-      });
+      // marioneta propia: 15 bloques rígidos sobre bisagras, sin skinning.
+      // La ficha solo aporta la piel (spec); rig y animaciones son comunes.
+      const model = buildVoxelPuppet(f.spec);
+      model.userData.modelId = id;
+      model.updateMatrixWorld(true);
+      const bbox = new THREE.Box3().setFromObject(model);
+      const h = Math.max(0.001, bbox.max.y - bbox.min.y);
+      const s = f.targetHeight / h;
+      model.scale.setScalar(s);
+      model.position.y = -bbox.min.y * s;
+      model.rotation.y = ryOverride.current ?? f.rotationY;
+      model.traverse((o) => { o.castShadow = true; });
+      scene.add(model);
+      const mixer = new THREE.AnimationMixer(model);
+      const rig = findRig(model);
+      const snapshot = new Map<THREE.Object3D, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }>();
+      model.traverse((o) => snapshot.set(o, { p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }));
+      current = { root: model, loaded: { rig, mixer, snapshot }, prev: clonePose(GUARD) };
+      loading = false;
+      setStatus(rig
+        ? `${f.autor} — rig "${rig.profile}" detectado`
+        : `${f.autor} — ¡rig NO reconocido!`);
     };
 
     loadModel(modelRef.current);
@@ -294,71 +212,44 @@ export default function App() {
         const t = tFreeze.current ?? (performance.now() - t0) / 1000;
         if (current) {
           const { loaded } = current;
-          // apagar el esqueleto de referencia al salir de CMU/horneado/&skel
-          if (rawShown && (driverRef.current !== "baked" || !skelRef.current || !clipRef.current.startsWith("cmu/"))) {
+          // apagar el esqueleto de referencia al salir de horneado/&skel
+          if (rawShown && (driverRef.current !== "baked" || !skelRef.current)) {
             rawShown.g.visible = false;
             rawShown.helper.visible = false;
             rawShown = null;
           }
-          if (driverRef.current === "mocap") {
-            const want = loaded.actions[clipRef.current];
-            if (want && want !== current.action) {
-              current.action?.fadeOut(0.25);
-              want.reset().fadeIn(0.25).play();
-              current.action = want;
-            }
-            loaded.mixer.update(dt);
-          } else if (driverRef.current === "baked") {
-            if (current.action) { current.action.stop(); current.action = null; }
+          if (driverRef.current === "baked") {
             if (loaded.rig) {
               const clipId = clipRef.current;
-              const isCmu = clipId.startsWith("cmu/");
-              let bc: BakedClip | undefined;
-              if (isCmu) {
-                const e = cmuCache.get(clipId);
-                if (!e) ensureCmu(clipId);
-                else if (e !== "loading") {
-                  bc = e.bc;
-                  // esqueleto crudo de referencia (&skel=1): verdad absoluta
-                  if (skelRef.current) {
-                    if (rawShown !== e.raw) {
-                      if (rawShown) { rawShown.g.visible = false; rawShown.helper.visible = false; }
-                      rawShown = e.raw;
-                      e.raw.g.visible = true;
-                      e.raw.helper.visible = true;
-                      e.raw.action.reset().play();
-                    }
-                    // con reloj congelado (&t=), el esqueleto se sincroniza al mismo t
-                    if (tFreeze.current !== null) {
-                      e.raw.action.paused = true;
-                      e.raw.action.time = t % e.raw.action.getClip().duration;
-                      e.raw.mixer.update(0);
-                    } else {
-                      e.raw.mixer.update(dt);
-                    }
+              const e = cmuCache.get(clipId);
+              if (!e) ensureCmu(clipId);
+              else if (e !== "loading") {
+                // esqueleto crudo de referencia (&skel=1): verdad absoluta
+                if (skelRef.current) {
+                  if (rawShown !== e.raw) {
+                    if (rawShown) { rawShown.g.visible = false; rawShown.helper.visible = false; }
+                    rawShown = e.raw;
+                    e.raw.g.visible = true;
+                    e.raw.helper.visible = true;
+                    e.raw.action.reset().play();
+                  }
+                  // con reloj congelado (&t=), el esqueleto se sincroniza al mismo t
+                  if (tFreeze.current !== null) {
+                    e.raw.action.paused = true;
+                    e.raw.action.time = t % e.raw.action.getClip().duration;
+                    e.raw.mixer.update(0);
+                  } else {
+                    e.raw.mixer.update(dt);
                   }
                 }
-              } else {
-                const key = modelRef.current + ":" + clipId;
-                bc = bakedCache.get(key);
-                if (!bc && loaded.actions[clipId]) {
-                  bc = bakeClip(loaded.rig, loaded.mixer, loaded.actions[clipId], 30, loaded.snapshot);
-                  loaded.snapshot.forEach((v, o) => { o.position.copy(v.p); o.quaternion.copy(v.q); o.scale.copy(v.s); });
-                  bakedCache.set(key, bc);
-                }
-              }
-              if (bc) {
-                let pose = sampleBaked(bc, t);
+                let pose = sampleBaked(e.bc, t);
                 if (mirrorRef.current) pose = mirrorPose(pose);
                 current.prev = tFreeze.current !== null ? pose : lerpPose(current.prev, pose, 0.65);
-                // CMU y el rig calibrado comparten referencia "de pie, brazos
-                // abajo" (el cero del BVH NO es T-pose; el bind T-pose sumaba
-                // 90° de error en hombros → brazos en vertical)
+                // CMU y el muñeco comparten referencia "de pie, brazos abajo"
                 applyPose(loaded.rig, current.prev);
               }
             }
           } else {
-            if (current.action) { current.action.stop(); current.action = null; }
             if (loaded.rig) {
               let target: Pose;
               // pose de calibración: brazo derecho al frente — debe apuntar a cámara
@@ -410,10 +301,10 @@ export default function App() {
       <div className="p-3 bg-black/40 border-t border-stone-700/50 space-y-2">
         <div className="grid grid-cols-2 gap-2">
           <div className="space-y-1">
-            <p className="text-[10px] uppercase text-stone-500 font-bold">Modelo</p>
+            <p className="text-[10px] uppercase text-stone-500 font-bold">Personaje</p>
             <div className="flex flex-col gap-1">
               {MODELS.map((m) => (
-                <button key={m.id} onClick={() => { setModelId(m.id); if (m.clips.length) { setClip(m.clips[0]); setClipsAvail(m.clips); } }}
+                <button key={m.id} onClick={() => setModelId(m.id)}
                   className={`py-1.5 px-2 rounded text-[11px] font-bold text-left ${modelId === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
                   {m.label}
                 </button>
@@ -423,19 +314,17 @@ export default function App() {
           <div className="space-y-1">
             <p className="text-[10px] uppercase text-stone-500 font-bold">Driver</p>
             <div className="flex gap-1">
-              {(["procedural", "mocap", "baked"] as const).map((d) => (
+              {(["procedural", "baked"] as const).map((d) => (
                 <button key={d} onClick={() => setDriver(d)}
                   className={`flex-1 py-1.5 rounded text-[11px] font-bold ${driver === d ? "bg-emerald-500 text-black" : "bg-stone-800"}`}>
-                  {d === "procedural" ? "Nuestro código" : d === "mocap" ? "Clip mocap" : "Horneado"}
+                  {d === "procedural" ? "Nuestro código" : "Horneado"}
                 </button>
               ))}
             </div>
             <p className="text-[10px] text-stone-500 leading-snug">
               {driver === "procedural"
-                ? "Cada hueso lo mueve nuestra biblioteca de poses."
-                : driver === "mocap"
-                  ? "Clip original del pack (referencia de calidad)."
-                  : "El clip mocap convertido a Poses: pasa por nuestro motor."}
+                ? "Cada articulación la mueve nuestra biblioteca de poses."
+                : "Mocap real convertido a Poses: pasa por nuestro motor."}
             </p>
             {driver === "baked" && (
               <label className="flex items-center gap-1.5 text-[11px] text-stone-300 cursor-pointer">
@@ -484,28 +373,16 @@ export default function App() {
             )}
           </div>
         ) : (
-          <div className="space-y-1.5">
-            <div className="grid grid-cols-3 gap-1 max-h-32 overflow-y-auto">
-              {clipsAvail.map((c) => (
-                <button key={c} onClick={() => setClip(c)}
-                  className={`py-1.5 rounded text-[10px] font-bold ${clip === c ? "bg-emerald-500 text-black" : "bg-stone-800"}`}>
-                  {c}
+          <div>
+            <p className="text-[9px] uppercase text-stone-500 font-bold pb-0.5">Mocap real · dataset CMU (libre)</p>
+            <div className="grid grid-cols-3 gap-1 max-h-24 overflow-y-auto">
+              {CMU_CLIPS.map((c) => (
+                <button key={c.file} onClick={() => setClip(c.file)}
+                  className={`py-1.5 rounded text-[10px] font-bold ${clip === c.file ? "bg-emerald-500 text-black" : "bg-stone-800"}`}>
+                  {c.label}
                 </button>
               ))}
             </div>
-            {driver === "baked" && (
-              <div>
-                <p className="text-[9px] uppercase text-stone-500 font-bold pb-0.5">Mocap real · dataset CMU (libre)</p>
-                <div className="grid grid-cols-3 gap-1 max-h-24 overflow-y-auto">
-                  {CMU_CLIPS.map((c) => (
-                    <button key={c.file} onClick={() => setClip(c.file)}
-                      className={`py-1.5 rounded text-[10px] font-bold ${clip === c.file ? "bg-emerald-500 text-black" : "bg-stone-800"}`}>
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
