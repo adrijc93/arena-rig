@@ -91,7 +91,7 @@ export const DUO: Record<string, DuoCfg> = {
 /* ════════════════════════════════════════════════════════════════
    SECUENCIAS — el duelo con guion.
    Para golpes y derribos el rival NO repite siempre lo mismo:
-   hay varios RESULTADOS que se alternan ciclo a ciclo
+   hay varios RESULTADOS que se alternan con cada click
    (defiende / le entra limpio / cae derribado).
    Cada resultado coreografía a AMBOS por tramos ("beats"):
    tt = t % T; el beat activo es el que contiene tt; su reloj local
@@ -175,6 +175,126 @@ export const DUO_SEQ: Record<string, DuoSeq> = {
         def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "chequeo", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 4.0 }] },
       { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "low-kick", from: 0.5, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.0 }],
         def: [{ move: "guardia-mma", from: 0, to: 1.0 }, { move: "golpeado", from: 1.0, to: 2.2 }, { move: "guardia-mma", from: 2.2, to: 4.0 }] },
+    ],
+  },
+  /* ── UPPERCUT: retira o le entra ── */
+  uppercut: {
+    T: 3.8,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "uppercut", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 3.8 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "retirada", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 3.8 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "uppercut", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 3.8 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.1 }, { move: "golpeado", from: 1.1, to: 2.3 }, { move: "guardia-mma", from: 2.3, to: 3.8 }] },
+    ],
+  },
+  /* ── GANCHO AL CUERPO: lo bloquea o le entra ── */
+  "gancho-cuerpo": {
+    T: 3.9,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "gancho-cuerpo", from: 0.5, to: 1.8 }, { move: "guardia-mma", from: 1.8, to: 3.9 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "bloqueo-cuerpo", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 3.9 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "gancho-cuerpo", from: 0.5, to: 1.8 }, { move: "guardia-mma", from: 1.8, to: 3.9 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.25 }, { move: "golpeado", from: 1.25, to: 2.45 }, { move: "guardia-mma", from: 2.45, to: 3.9 }] },
+    ],
+  },
+  /* ── SUPERMAN PUNCH: se cubre… o KNOCKDOWN y a rematar ── */
+  superman: {
+    T: 4.8,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "superman", from: 0.5, to: 2.0 }, { move: "guardia-mma", from: 2.0, to: 4.8 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "cobertura", from: 0.5, to: 2.0 }, { move: "guardia-mma", from: 2.0, to: 4.8 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "superman", from: 0.5, to: 2.0 }, { move: "guardia-mma", from: 2.0, to: 2.7 }, { move: "guardia-arriba", from: 2.7, to: 4.8 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.4 }, { move: "golpeado", from: 1.4, to: 2.0 }, { move: "derribado", from: 2.0, to: 3.4 }, { move: "guardia-abajo", from: 3.4, to: 4.8 }] },
+    ],
+  },
+  /* ── BACKFIST GIRATORIO: se cubre… o KNOCKDOWN y a rematar ── */
+  backfist: {
+    T: 4.4,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "backfist", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 4.4 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "cobertura", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 4.4 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "backfist", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 2.6 }, { move: "guardia-arriba", from: 2.6, to: 4.4 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.2 }, { move: "golpeado", from: 1.2, to: 1.9 }, { move: "derribado", from: 1.9, to: 3.3 }, { move: "guardia-abajo", from: 3.3, to: 4.4 }] },
+    ],
+  },
+  /* ── CODO HORIZONTAL: lo bloquea o le entra ── */
+  codo: {
+    T: 3.6,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "codo", from: 0.5, to: 1.5 }, { move: "guardia-mma", from: 1.5, to: 3.6 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "bloqueo-alto", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 3.6 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "codo", from: 0.5, to: 1.5 }, { move: "guardia-mma", from: 1.5, to: 3.6 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.85 }, { move: "golpeado", from: 0.85, to: 2.05 }, { move: "guardia-mma", from: 2.05, to: 3.6 }] },
+    ],
+  },
+  /* ── CODO GIRATORIO: se cubre… o KNOCKDOWN y a rematar ── */
+  "codo-giro": {
+    T: 4.4,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "codo-giro", from: 0.5, to: 1.8 }, { move: "guardia-mma", from: 1.8, to: 4.4 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "cobertura", from: 0.5, to: 1.8 }, { move: "guardia-mma", from: 1.8, to: 4.4 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "codo-giro", from: 0.5, to: 1.8 }, { move: "guardia-mma", from: 1.8, to: 2.5 }, { move: "guardia-arriba", from: 2.5, to: 4.4 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.15 }, { move: "golpeado", from: 1.15, to: 1.85 }, { move: "derribado", from: 1.85, to: 3.25 }, { move: "guardia-abajo", from: 3.25, to: 4.4 }] },
+    ],
+  },
+  /* ── CIRCULAR AL CUERPO: lo bloquea o le entra ── */
+  "patada-cuerpo": {
+    T: 4.4,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "patada-cuerpo", from: 0.5, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.4 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "bloqueo-cuerpo", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 4.4 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "patada-cuerpo", from: 0.5, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.4 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.3 }, { move: "golpeado", from: 1.3, to: 2.5 }, { move: "guardia-mma", from: 2.5, to: 4.4 }] },
+    ],
+  },
+  /* ── FRONTAL (teep): retira… o le empuja y pierde la base ── */
+  frontal: {
+    T: 4.2,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "frontal", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 4.2 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "retirada", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 4.2 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "frontal", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 4.2 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.27 }, { move: "golpeado", from: 1.27, to: 2.0 }, { move: "zozobra", from: 2.0, to: 2.9 }, { move: "guardia-mma", from: 2.9, to: 4.2 }] },
+    ],
+  },
+  /* ── LATERAL (side kick): retira… o le empuja y pierde la base ── */
+  lateral: {
+    T: 4.2,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "lateral", from: 0.5, to: 2.0 }, { move: "guardia-mma", from: 2.0, to: 4.2 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "retirada", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 4.2 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "lateral", from: 0.5, to: 2.0 }, { move: "guardia-mma", from: 2.0, to: 4.2 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.4 }, { move: "golpeado", from: 1.4, to: 2.2 }, { move: "zozobra", from: 2.2, to: 3.1 }, { move: "guardia-mma", from: 3.1, to: 4.2 }] },
+    ],
+  },
+  /* ── SWITCH KICK: lo bloquea o le entra ── */
+  switch: {
+    T: 4.0,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "switch", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 4.0 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "bloqueo-cuerpo", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 4.0 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "switch", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 4.0 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.2 }, { move: "golpeado", from: 1.2, to: 2.4 }, { move: "guardia-mma", from: 2.4, to: 4.0 }] },
+    ],
+  },
+  /* ── RODILLAZO: aguanta en clinch o le entra ── */
+  rodilla: {
+    T: 3.6,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "rodilla", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 3.6 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "clinch", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 3.6 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "rodilla", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 3.6 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.92 }, { move: "golpeado", from: 0.92, to: 2.12 }, { move: "guardia-mma", from: 2.12, to: 3.6 }] },
+    ],
+  },
+  /* ── RODILLA VOLADORA: se cubre… o KNOCKDOWN y a rematar ── */
+  "rodilla-voladora": {
+    T: 4.8,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "rodilla-voladora", from: 0.5, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.8 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "cobertura", from: 0.5, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.8 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "rodilla-voladora", from: 0.5, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 2.8 }, { move: "guardia-arriba", from: 2.8, to: 4.8 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.45 }, { move: "golpeado", from: 1.45, to: 2.1 }, { move: "derribado", from: 2.1, to: 3.5 }, { move: "guardia-abajo", from: 3.5, to: 4.8 }] },
     ],
   },
   /* ── DERRIBO (double leg): lo defiende de pie… o cae y le montan ── */
