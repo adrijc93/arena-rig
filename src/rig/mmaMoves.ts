@@ -21,7 +21,7 @@ export type MmaMoveId =
   | "low-kick" | "patada-cuerpo" | "circular" | "frontal" | "lateral" | "switch" | "rodilla" | "rodilla-voladora"
   | "clinch" | "sprawl" | "derribo"
   | "guardia-abajo" | "guardia-arriba" | "montada" | "ground-pound" | "sumision"
-  | "ko-plano" | "golpeado" | "derribado" | "zozobra" | "volcado" | "volado"
+  | "ko-plano" | "golpeado" | "derribado" | "zozobra" | "volcado" | "volado" | "defensa-derribo"
   | MmaGroundMoveId;
 
 export type MmaSeccion = "pie" | "suelo";
@@ -74,6 +74,7 @@ export const MMA_MOVES: { id: MmaMoveId; label: string; seccion: MmaSeccion; gru
   { id: "derribado", label: "Derribado (cae atrás)", seccion: "suelo", grupo: "Reacciones" },
   { id: "volcado", label: "¡Volcado (al mat)!", seccion: "suelo", grupo: "Reacciones" },
   { id: "volado", label: "¡Volado (suplex)!", seccion: "suelo", grupo: "Reacciones" },
+  { id: "defensa-derribo", label: "Defensa de derribo", seccion: "pie", grupo: "Reacciones" },
 ];
 
 /** Guardia MMA: manos altas, perfil blado, rebote ligero */
@@ -815,6 +816,25 @@ export function mmaPoseFor(id: string, t: number): Pose {
       // brazos: se agitan en el vuelo → protegen la caída
       p.uaR = [-1.0 - lift * 0.6, 0, 0.3 + flip * 0.5 + slam * 0.1]; p.faR = -2.0 + lift * 0.9 - slam * 0.4;
       p.uaL = [-1.1 - lift * 0.55, -0.2, -0.05 - flip * 0.5 - slam * 0.1]; p.faL = -2.05 + lift * 0.9 - slam * 0.4;
+      return p;
+    }
+
+    // defensa-derribo: lo defiende DE PIE y bien — se planta con el centro
+    // bajo, las manos presionan abajo al que entra y la cabeza queda arriba
+    case "defensa-derribo": {
+      const u = clamp01(t / 1.4);
+      const k = u < 0.25 ? easeOut(u / 0.25) : u < 0.7 ? 1 : 1 - easeIn((u - 0.7) / 0.3);
+      p.bob = -k * 0.12;                            // planta los pies, centro bajo
+      p.tz = -k * 0.18;                             // cede un paso, firme
+      p.lean = 0.1 + k * 0.18;                      // pecho sobre las manos, espalda recta
+      p.headX = 0.08 - k * 0.15;                    // cabeza ARRIBA: control total
+      p.twist = 0.35;
+      // manos abajo presionando la cabeza/espalda del que entra
+      p.uaR = [-0.55 - k * 0.25, 0, 0.25]; p.faR = -0.7 - k * 0.35;
+      p.uaL = [-0.6 - k * 0.25, -0.15, -0.2]; p.faL = -0.75 - k * 0.35;
+      // base ancha y cargada
+      p.thL = -0.22 - k * 0.25; p.thLY = k * 0.15; p.shL = 0.35 + k * 0.2;
+      p.thR = 0.18 + k * 0.15; p.thRY = -k * 0.1; p.shR = 0.3 + k * 0.2;
       return p;
     }
 
