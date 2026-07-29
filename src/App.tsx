@@ -32,7 +32,7 @@ const AIM: Record<string, { side: "L" | "R"; lvl: "head" | "body" }[]> = {
 /* Posiciones de suelo: para colocar la escena dinámicamente durante
    las secuencias (el derribo empieza de pie y acaba en el suelo). */
 const GROUND_TOP = new Set(["guardia-arriba", "montada", "ground-pound", "side-control", "rodilla-vientre", "pase-guardia", "kimura", "americana"]);
-const GROUND_BOTTOM = new Set(["guardia-abajo", "media-guardia", "sumision", "triangulo", "shrimp", "upa", "derribado", "ko-plano", "volcado", "volado"]);
+const GROUND_BOTTOM = new Set(["guardia-abajo", "media-guardia", "sumision", "triangulo", "shrimp", "upa", "derribado", "ko-plano"]);
 
 /* ════════════════════════════════════════════════════════════════
    ARENA RIG LAB — banco de pruebas del motor de animación.
@@ -302,7 +302,7 @@ export default function App() {
               const mA = beatA?.move ?? "", mB = beatB?.move ?? "";
               if (GROUND_TOP.has(mA) || GROUND_BOTTOM.has(mB)) { mode = "ground"; dynTop = true; }
               else if (GROUND_BOTTOM.has(mA) || GROUND_TOP.has(mB)) { mode = "ground"; dynTop = false; }
-              else mode = "face";
+              else mode = cfg.mode ?? "face";   // respeta disposiciones especiales (suplex = "behind")
             }
             if (mode === "face") {
               const d = (cfg.dist ?? 1.1) / 2;

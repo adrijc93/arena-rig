@@ -63,7 +63,7 @@ export const DUO: Record<string, DuoCfg> = {
   "derribo":    { def: "sprawl", pA: 2.4, pD: 2.0, dist: 1.25 },
   "single-leg": { def: "sprawl", pA: 2.2, pD: 2.0, dist: 1.25 },
   "ippon":      { def: "guardia-mma", pA: 2.0, dist: 0.85 },
-  "suplex":     { def: "guardia-mma", pA: 2.4, dist: 0.85 },
+  "suplex":     { def: "guardia-mma", pA: 2.4, mode: "behind" },   // se ejecuta desde la espalda
   "guillotina": { def: "derribo", pD: 2.4, dist: 1.1 },   // caza el derribo
   "ko-plano":   { def: "cross", pA: 3.5, pD: 1.15, dist: 1.15 },
 
@@ -184,7 +184,7 @@ export const DUO_SEQ: Record<string, DuoSeq> = {
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "derribo", from: 0.6, to: 3.0 }, { move: "guardia-mma", from: 3.0, to: 5.2 }],
         def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "defensa-derribo", from: 0.6, to: 2.0 }, { move: "guardia-mma", from: 2.0, to: 5.2 }] },
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "derribo", from: 0.6, to: 3.0 }, { move: "guardia-arriba", from: 3.0, to: 5.2 }],
-        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "volcado", from: 0.6, to: 1.8 }, { move: "guardia-abajo", from: 1.8, to: 5.2 }] },
+        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "volcado", from: 0.6, to: 2.6 }, { move: "guardia-abajo", from: 2.6, to: 5.2 }] },
     ],
   },
   /* ── SINGLE LEG: lo defiende de pie… o cae y le montan ── */
@@ -194,17 +194,17 @@ export const DUO_SEQ: Record<string, DuoSeq> = {
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "single-leg", from: 0.6, to: 2.8 }, { move: "guardia-mma", from: 2.8, to: 5.0 }],
         def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "defensa-derribo", from: 0.6, to: 2.0 }, { move: "guardia-mma", from: 2.0, to: 5.0 }] },
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "single-leg", from: 0.6, to: 2.8 }, { move: "guardia-arriba", from: 2.8, to: 5.0 }],
-        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "volcado", from: 0.6, to: 1.8 }, { move: "guardia-abajo", from: 1.8, to: 5.0 }] },
+        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "volcado", from: 0.6, to: 2.6 }, { move: "guardia-abajo", from: 2.6, to: 5.0 }] },
     ],
   },
-  /* ── SUPLEX: lo defiende de pie… o vuela por los aires ── */
+  /* ── SUPLEX (DESDE LA ESPALDA): lo defiende de pie… o vuela ── */
   suplex: {
     T: 4.6,
     outcomes: [
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "suplex", from: 0.6, to: 3.0 }, { move: "guardia-mma", from: 3.0, to: 4.6 }],
         def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "defensa-derribo", from: 0.7, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.6 }] },
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "suplex", from: 0.6, to: 3.0 }, { move: "guardia-arriba", from: 3.0, to: 4.6 }],
-        def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "volado", from: 0.7, to: 2.2 }, { move: "guardia-abajo", from: 2.2, to: 4.6 }] },
+        def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "volado", from: 0.7, to: 2.5 }, { move: "guardia-abajo", from: 2.5, to: 4.6 }] },
     ],
   },
   /* ── IPPON (seoi nage): lo defiende de pie… o proyección limpia ── */
@@ -214,7 +214,7 @@ export const DUO_SEQ: Record<string, DuoSeq> = {
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "ippon", from: 0.6, to: 2.6 }, { move: "guardia-mma", from: 2.6, to: 4.4 }],
         def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "defensa-derribo", from: 0.7, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.4 }] },
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "ippon", from: 0.6, to: 2.6 }, { move: "guardia-mma", from: 2.6, to: 4.4 }],
-        def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "volcado", from: 0.7, to: 1.9 }, { move: "guardia-abajo", from: 1.9, to: 4.4 }] },
+        def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "volcado", from: 0.7, to: 2.7 }, { move: "guardia-abajo", from: 2.7, to: 4.4 }] },
     ],
   },
 };
