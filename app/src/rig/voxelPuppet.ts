@@ -79,61 +79,58 @@ function faceTexture(skin: number, face?: FaceSpec): THREE.CanvasTexture {
   const g = c.getContext("2d")!;
   g.fillStyle = css(skin);
   g.fillRect(0, 0, 128, 128);
-  const skinCss = css(skin);
-  // sombreado sutil: cuencas de los ojos y bajo la nariz (tono oscurecido de la piel)
-  g.fillStyle = "rgba(30,20,15,0.10)";
-  g.fillRect(28, 46, 28, 32);              // cuenca izquierda
-  g.fillRect(72, 46, 28, 32);              // cuenca derecha
-  g.fillStyle = "rgba(30,20,15,0.14)";
-  g.fillRect(58, 82, 12, 5);               // sombra bajo la nariz
-  g.fillStyle = skinCss;                   // (restaura para que la nariz sea de piel oscurecida abajo)
-  // nariz: bloque central de piel ligeramente más oscura
-  g.fillStyle = "rgba(30,20,15,0.16)";
-  g.fillRect(58, 60, 12, 22);
-  g.fillStyle = "rgba(255,255,255,0.10)";
-  g.fillRect(58, 60, 4, 18);               // brillo del puente
-  // modelado del rostro: frente, pómulos y surco nasolabial
-  g.fillStyle = "rgba(30,20,15,0.06)";
-  g.fillRect(20, 8, 88, 30);               // frente (sutil)
-  g.fillStyle = "rgba(30,20,15,0.10)";
-  g.fillRect(30, 78, 18, 6);               // pómulo izquierdo
-  g.fillRect(80, 78, 18, 6);               // pómulo derecho
-  g.fillRect(50, 84, 4, 8);                // surco nasolabial izquierdo
-  g.fillRect(74, 84, 4, 8);                // surco nasolabial derecho
-  g.fillStyle = "rgba(120,60,50,0.22)";
-  g.fillRect(52, 86, 24, 10);              // labios (tinte cálido bajo la boca)
-  // ojos (dos bloques)
-  g.fillStyle = "#2b2724";
-  g.fillRect(34, 52, 16, 22);
-  g.fillRect(78, 52, 16, 22);
+  /* PROPORCIÓN VOXEL: los rasgos llenan el 60-70% de la cara. Si son
+     pequeños, la cabeza queda "en blanco" y sin personalidad. */
+  // sombreado: cuencas, nariz, frente, pómulos (alfa fuerte: también
+  // debe verse sobre pieles oscuras)
+  g.fillStyle = "rgba(25,16,12,0.16)";
+  g.fillRect(24, 44, 32, 34);              // cuenca izquierda
+  g.fillRect(72, 44, 32, 34);              // cuenca derecha
+  g.fillStyle = "rgba(25,16,12,0.22)";
+  g.fillRect(56, 58, 16, 26);              // nariz
+  g.fillRect(56, 84, 16, 6);               // sombra bajo la nariz
+  g.fillStyle = "rgba(255,255,255,0.16)";
+  g.fillRect(56, 58, 5, 22);               // brillo del puente
+  g.fillStyle = "rgba(25,16,12,0.10)";
+  g.fillRect(18, 6, 92, 32);               // frente
+  g.fillStyle = "rgba(25,16,12,0.16)";
+  g.fillRect(26, 80, 20, 7);               // pómulo izquierdo
+  g.fillRect(82, 80, 20, 7);               // pómulo derecho
+  g.fillRect(48, 86, 5, 9);                // surco nasolabial izquierdo
+  g.fillRect(75, 86, 5, 9);                // surco nasolabial derecho
+  g.fillStyle = "rgba(120,60,50,0.28)";
+  g.fillRect(50, 88, 28, 12);              // labios (tinte cálido bajo la boca)
+  // ojos GRANDES (cada uno ~17% del ancho de la cara)
+  g.fillStyle = "#211d1a";
+  g.fillRect(28, 50, 22, 26);
+  g.fillRect(78, 50, 22, 26);
   // brillo
   g.fillStyle = "#ffffff";
-  g.fillRect(38, 54, 5, 6);
-  g.fillRect(82, 54, 5, 6);
-  // boca: sonrisa por defecto; "serio" = línea recta
-  g.fillStyle = "#2b2724";
+  g.fillRect(32, 52, 6, 7);
+  g.fillRect(82, 52, 6, 7);
+  // boca GRANDE: sonrisa por defecto; "serio" = línea recta
+  g.fillStyle = "#211d1a";
   if (face?.mouth === "serio") {
-    g.fillRect(48, 90, 32, 6);
-    g.fillStyle = "rgba(30,20,15,0.25)";
-    g.fillRect(46, 88, 4, 8);              // comisuras hundidas
-    g.fillRect(78, 88, 4, 8);
+    g.fillRect(44, 92, 40, 8);
+    g.fillStyle = "rgba(25,16,12,0.30)";
+    g.fillRect(42, 90, 5, 10);             // comisuras hundidas
+    g.fillRect(81, 90, 5, 10);
   } else {
-    g.fillRect(52, 88, 24, 6);
-    g.fillRect(46, 82, 6, 6);
-    g.fillRect(76, 82, 6, 6);
+    g.fillRect(48, 92, 32, 8);
+    g.fillRect(42, 84, 8, 8);
+    g.fillRect(78, 84, 8, 8);
   }
-  // cejas: línea base siempre (da expresión); "fruncido" las inclina al entrecejo
-  g.fillStyle = "rgba(43,39,36,0.8)";
-  g.fillRect(32, 44, 20, 6);
-  g.fillRect(76, 44, 20, 6);
-  // cejas fruncidas: dos bloques inclinados hacia el entrecejo
+  // cejas GRANDES: línea base siempre; "fruncido" las inclina al entrecejo
+  g.fillStyle = "rgba(33,29,26,0.9)";
+  g.fillRect(26, 42, 26, 8);
+  g.fillRect(76, 42, 26, 8);
   if (face?.brows === "fruncido") {
-    g.fillStyle = "#2b2724";
+    g.fillStyle = "#211d1a";
     g.save();
-    g.translate(42, 46); g.rotate(0.32); g.fillRect(-15, -4, 30, 8);
+    g.translate(41, 45); g.rotate(0.32); g.fillRect(-18, -5, 36, 10);
     g.restore();
     g.save();
-    g.translate(86, 46); g.rotate(-0.32); g.fillRect(-15, -4, 30, 8);
+    g.translate(87, 45); g.rotate(-0.32); g.fillRect(-18, -5, 36, 10);
     g.restore();
   }
   // vello facial: GRANDE, que cubra de verdad la mitad inferior de la cara
@@ -228,8 +225,9 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
     head.add(box(hs + 0.10, 0.15, hs + 0.10, hc, 0, top + 0.065, -0.01));
     head.add(box(hs + 0.06, 0.05, hs + 0.06, hc, 0, top - 0.01, -0.01)); // borde bajo
   } else if (hair === "rapado") {
-    // rapado al cero: lámina fina pegada al cráneo (Jones, Silva)
-    head.add(box(hs + 0.005, 0.03, hs + 0.005, hc, 0, top + 0.008, -0.005));
+    // rapado al cero: lámina fina PEGADA al cráneo (Jones, Silva) —
+    // si sobresale parece una tapa flotando
+    head.add(box(hs + 0.002, 0.028, hs + 0.002, hc, 0, top + 0.004, -0.004));
   } else if (hair === "corto") {
     head.add(box(hs + 0.02, 0.09, hs + 0.02, hc, 0, top + 0.03, -0.01));
   } else if (hair === "melena") {
@@ -280,17 +278,19 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
   // su profundidad, y la barba CUELGA bajo el mentón como una de verdad.
   // (La placa única de antes parecía un bloque flotando delante de la cara.)
   if (face?.beard === "completa") {
-    head.add(box(hs * 0.50, 0.045, 0.035, bc3, 0, cy - hs * 0.13, zf + 0.010));          // bigote bajo la nariz
-    head.add(box(hs * 0.88, hs * 0.16, 0.03, bc3, 0, cy - hs * 0.25, zf + 0.006));       // línea alta de mejillas
-    head.add(box(hs * 0.80, hs * 0.22, 0.045, bc3, 0, cy - hs * 0.40, zf + 0.012));      // mandíbula principal
-    head.add(box(hs * 0.58, hs * 0.18, 0.065, bc3, 0, cy - hs * 0.53, zf + 0.018));      // punta de la barbilla (cuelga)
-    head.add(box(0.045, hs * 0.55, hs * 0.55, bc3, -(zf + 0.010), cy - hs * 0.15, 0.02)); // patilla/mejilla izq
-    head.add(box(0.045, hs * 0.55, hs * 0.55, bc3, zf + 0.010, cy - hs * 0.15, 0.02));   // patilla/mejilla der
+    // empieza BAJO la boca: deja libres ojos, nariz y pómulos (si sube,
+    // se convierte en un muro que se traga la cara)
+    head.add(box(hs * 0.46, 0.04, 0.03, bc3, 0, cy - hs * 0.15, zf + 0.008));            // bigote bajo la nariz
+    head.add(box(hs * 0.86, hs * 0.13, 0.028, bc3, 0, cy - hs * 0.29, zf + 0.005));      // mejillas
+    head.add(box(hs * 0.78, hs * 0.20, 0.042, bc3, 0, cy - hs * 0.43, zf + 0.010));      // mandíbula principal
+    head.add(box(hs * 0.55, hs * 0.17, 0.06, bc3, 0, cy - hs * 0.58, zf + 0.015));       // punta de la barbilla (cuelga)
+    head.add(box(0.04, hs * 0.50, hs * 0.55, bc3, -(zf + 0.008), cy - hs * 0.20, 0.02)); // patilla/mejilla izq
+    head.add(box(0.04, hs * 0.50, hs * 0.55, bc3, zf + 0.008, cy - hs * 0.20, 0.02));    // patilla/mejilla der
     head.add(box(hs * 0.62, 0.06, hs * 0.68, bc3, 0, cy - hs / 2 + 0.012, 0.02));        // bajo la barbilla
   } else if (face?.beard === "perilla") {
-    head.add(box(hs * 0.44, 0.035, 0.03, bc3, 0, cy - hs * 0.13, zf + 0.008));           // bigote
-    head.add(box(hs * 0.40, hs * 0.18, 0.045, bc3, 0, cy - hs * 0.34, zf + 0.015));      // mechón
-    head.add(box(hs * 0.28, hs * 0.14, 0.055, bc3, 0, cy - hs * 0.47, zf + 0.025));      // punta del mechón (cuelga)
+    head.add(box(hs * 0.44, 0.035, 0.028, bc3, 0, cy - hs * 0.15, zf + 0.006));          // bigote
+    head.add(box(hs * 0.38, hs * 0.17, 0.042, bc3, 0, cy - hs * 0.36, zf + 0.012));      // mechón
+    head.add(box(hs * 0.27, hs * 0.14, 0.052, bc3, 0, cy - hs * 0.50, zf + 0.022));      // punta del mechón (cuelga)
   }
 
   if (spec.helmet !== undefined) {
