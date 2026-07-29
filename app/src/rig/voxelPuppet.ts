@@ -19,7 +19,8 @@ import * as THREE from "three";
     construyen con bloques (pelo). Todo opcional y combinable. */
 export interface FaceSpec {
   brows?: "normal" | "fruncido";
-  mouth?: "sonrisa" | "serio";
+  mouth?: "sonrisa" | "serio" | "smirk";
+  wrinkles?: boolean;    // arrugas de frente estilo LEGO (veteranos)
   beard?: "none" | "perilla" | "completa" | "stubble";
   beardColor?: number;
   nose?: "recta" | "ancha" | "afilada" | "chata" | "aguilena";
@@ -85,7 +86,11 @@ function joint(parent: THREE.Object3D, name: string, x: number, y: number, z: nu
    los rasgos viven en el tercio central (el frente, +Z) y el resto del
    lienzo es piel/pelo alrededor de la cabeza — como una minifigura LEGO.
    PROPORCIÓN: los rasgos llenan el 60-70% del frente; si son pequeños,
-   la cabeza queda "en blanco" y sin personalidad. */
+   la cabeza queda "en blanco" y sin personalidad.
+   REGLAS LEGO para caras licenciadas: ojos negros con pupila blanca,
+   cejas del color del vello, líneas de contorno nítidas (cheek lines,
+   chin lines, ojeras) en vez de sombreado, boca como seña de identidad,
+   arrugas de frente en veteranos y tono de piel del personaje real. */
 function faceTexture(skin: number, face?: FaceSpec): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 256; c.height = 128;
@@ -126,24 +131,46 @@ function faceTexture(skin: number, face?: FaceSpec): THREE.CanvasTexture {
   g.fillStyle = "#ffffff";
   g.fillRect(CX - 24, 52, 5, 6);
   g.fillRect(CX + 14, 52, 5, 6);
-  // boca GRANDE: sonrisa por defecto; "serio" = línea recta
+  // boca GRANDE — la SEÑA DE IDENTIDAD del personaje (regla LEGO:
+  // cada cara licenciada tiene SU boca). sonrisa / serio / smirk torcida
   g.fillStyle = "#211d1a";
   if (face?.mouth === "serio") {
     g.fillRect(CX - 18, 92, 36, 7);
     g.fillStyle = "rgba(25,16,12,0.30)";
     g.fillRect(CX - 20, 90, 4, 9);          // comisuras hundidas
     g.fillRect(CX + 16, 90, 4, 9);
+  } else if (face?.mouth === "smirk") {
+    // mueca torcida de arrogante (McGregor): línea con UNA comisura subida
+    g.fillRect(CX - 16, 93, 28, 6);
+    g.fillRect(CX + 8, 86, 7, 8);           // comisura derecha sube
+    g.fillStyle = "rgba(25,16,12,0.30)";
+    g.fillRect(CX - 19, 91, 4, 8);
   } else {
     g.fillRect(CX - 14, 92, 28, 7);
     g.fillRect(CX - 19, 86, 6, 7);
     g.fillRect(CX + 13, 86, 6, 7);
   }
-  // cejas GRANDES: línea base siempre; "fruncido" las inclina al entrecejo
-  g.fillStyle = "rgba(33,29,26,0.9)";
+  /* LÍNEAS DE CONTORNO LEGO: el parecido se logra con líneas nítidas
+     oscuras (cheek lines, chin lines, ojeras), NO con más sombreado */
+  g.fillStyle = "rgba(60,38,24,0.50)";
+  g.fillRect(CX - 26, 76, 13, 3);           // ojera izquierda
+  g.fillRect(CX + 13, 76, 13, 3);           // ojera derecha
+  g.save(); g.translate(CX - 32, 84); g.rotate(0.45); g.fillRect(0, 0, 12, 3); g.restore();   // cheek line izq
+  g.save(); g.translate(CX + 20, 84); g.rotate(-0.45); g.fillRect(0, 0, 12, 3); g.restore();  // cheek line der
+  g.fillRect(CX - 9, 112, 18, 3);           // chin line
+  if (face?.wrinkles) {
+    // arrugas de frente (personajes veteranos, estilo LEGO clásico)
+    g.fillRect(CX - 28, 14, 56, 3);
+    g.fillRect(CX - 24, 22, 48, 3);
+    g.fillRect(CX - 28, 30, 56, 3);
+  }
+  // cejas GRANDES del COLOR DEL VELLO (regla LEGO: las cejas delatan al
+  // personaje); barba si la hay, si no el pelo — nunca el gorro/papakha
+  const browC = css(face?.beardColor ?? face?.hairColor ?? 0x2b2118);
+  g.fillStyle = browC;
   g.fillRect(CX - 29, 42, 20, 7);
   g.fillRect(CX + 9, 42, 20, 7);
   if (face?.brows === "fruncido") {
-    g.fillStyle = "#211d1a";
     g.save();
     g.translate(CX - 19, 44); g.rotate(0.34); g.fillRect(-14, -5, 28, 9);
     g.restore();
@@ -174,6 +201,21 @@ function faceTexture(skin: number, face?: FaceSpec): THREE.CanvasTexture {
     g.fillRect(CX - 44, 62, 13, 36);        // patilla izquierda
     g.fillRect(CX + 31, 62, 13, 36);        // patilla derecha
     g.fillRect(CX - 18, 88, 36, 7);         // sombra de bigote
+  }
+  // con barba la boca se dibuja ENCIMA: hueco oscuro-rojizo dentro del
+  // vello (así hace LEGO las caras barbadas: la boca siempre se lee)
+  if (face?.beard === "completa" || face?.beard === "perilla") {
+    g.fillStyle = "#3d1f16";
+    if (face?.mouth === "serio") {
+      g.fillRect(CX - 14, 94, 28, 5);
+    } else if (face?.mouth === "smirk") {
+      g.fillRect(CX - 12, 95, 22, 5);
+      g.fillRect(CX + 6, 89, 6, 7);
+    } else {
+      g.fillRect(CX - 12, 94, 24, 5);
+      g.fillRect(CX - 15, 90, 4, 5);
+      g.fillRect(CX + 11, 90, 4, 5);
+    }
   }
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter;
@@ -365,16 +407,17 @@ export const FACE_PRESETS: FacePreset[] = [
   { id: "corto", label: "✂️ Pelo", face: { hair: "corto", hairColor: 0x2b2118 } },
   { id: "melena", label: "🎸 Melena", face: { hair: "melena", hairColor: 0x3a2a1a } },
   { id: "cresta", label: "🐓 Cresta", face: { hair: "cresta", hairColor: 0x8c2f2f, brows: "fruncido" } },
-  { id: "veterano", label: "🧓 Veterano", face: { hair: "corto", hairColor: 0x9a938c, beard: "completa", beardColor: 0x8a837c } },
+  { id: "veterano", label: "🧓 Veterano", face: { hair: "corto", hairColor: 0x9a938c, beard: "completa", beardColor: 0x8a837c, wrinkles: true } },
+  { id: "smirk", label: "😏 Mueca", face: { mouth: "smirk", brows: "fruncido" } },
   // ── inspirados en leyendas de UFC ──
   { id: "aguila", label: "🦅 El Águila", skin: 0xc89878,
     face: { hair: "papakha", hairColor: 0xe8dcc0, beard: "completa", beardColor: 0x14100c, brows: "fruncido", mouth: "serio", nose: "aguilena" } },
   { id: "notorio", label: "☘️ El Notorio", skin: 0xdbb48a,
-    face: { hair: "corto", hairColor: 0x8a5c34, beard: "completa", beardColor: 0x8a5c34, brows: "fruncido", mouth: "serio", nose: "afilada" } },
+    face: { hair: "corto", hairColor: 0x8a5c34, beard: "completa", beardColor: 0x8a5c34, brows: "fruncido", mouth: "smirk", nose: "afilada" } },
   { id: "huesos", label: "🦴 Huesos", skin: 0x8a5f45,
-    face: { hair: "rapado", hairColor: 0x17110d, mouth: "serio", nose: "ancha" } },
+    face: { hair: "rapado", hairColor: 0x17110d, mouth: "serio", nose: "ancha", wrinkles: true } },
   { id: "arana", label: "🕷️ La Araña", skin: 0x7a5138,
-    face: { hair: "rapado", hairColor: 0x17110d, beard: "stubble", mouth: "serio", nose: "chata" } },
+    face: { hair: "rapado", hairColor: 0x17110d, beard: "stubble", mouth: "serio", nose: "chata", wrinkles: true } },
   { id: "lobo", label: "🐺 El Lobo", skin: 0xd0a884,
     face: { hair: "corto", hairColor: 0x241a10, beard: "completa", beardColor: 0x241a10, brows: "fruncido", nose: "recta" } },
 ];
