@@ -779,43 +779,48 @@ export function mmaPoseFor(id: string, t: number): Pose {
       return p;
     }
 
-    // volcado: lo alzan y lo estampan (double/single leg, ippon) — despega,
-    // patalea en el aire y cae de espaldas; acaba tumbado como "derribado"
+    // volcado: lo agarran y lo estampan (double/single leg, ippon).
+    // SINCRONIZADO con el ciclo del atacante (2.0–2.4 s): primero queda
+    // ATRAPADO de pie mientras el atacante baja y penetra; despega cuando
+    // el atacante levanta; cae de espaldas y acaba tumbado como "derribado".
     case "volcado": {
-      const u = clamp01(t / 1.2);
-      const lift = u < 0.45 ? easeOut(u / 0.45) : 1 - easeIn(clamp01((u - 0.45) / 0.3));
-      const down = u < 0.45 ? 0 : easeIn(clamp01((u - 0.45) / 0.3));
-      p.bob = lift * 0.35 - down * 0.78;            // sube 0.35, acaba en el suelo
-      p.hipsX = -lift * 0.6 - down * 0.9;           // bascula atrás → tumbado (-1.5)
-      p.tz = -lift * 0.1 - down * 0.1;
-      p.lean = 0.1 - lift * 0.2 - down * 0.1;
-      p.headX = 0.08 - lift * 0.25 + down * 0.35;   // mira al techo → barbilla al pecho
-      // piernas: patalean arriba al despegar, se pliegan al caer
-      p.thL = -0.22 - lift * 0.9 - down * 0.55; p.shL = 0.35 + lift * 1.0 + down * 0.9;
-      p.thR = 0.18 - lift * 0.7 - down * 0.35; p.shR = 0.3 + lift * 0.8 + down * 0.85;
-      // brazos: se agitan en el aire, acaban en guardia tumbada
-      p.uaR = [-1.0 - lift * 0.7 - down * 0.3, 0, 0.3 + lift * 0.6 + down * 0.1]; p.faR = -2.0 + lift * 1.0 + down * 0.2;
-      p.uaL = [-1.1 - lift * 0.65 - down * 0.3, -0.2, -0.05 - lift * 0.6 - down * 0.1]; p.faL = -2.05 + lift * 1.0 + down * 0.2;
+      const u = clamp01(t / 2.0);
+      const grab = u < 0.25 ? easeOut(u / 0.25) : 1;                    // atrapado 0–0.5 s
+      const lift = u < 0.25 ? 0 : u < 0.5 ? easeOut((u - 0.25) / 0.25) : 1; // despega 0.5–1.0 s
+      const down = u < 0.5 ? 0 : easeIn(clamp01((u - 0.5) / 0.2));      // cae 1.0–1.4 s
+      p.bob = -grab * 0.08 + lift * 0.53 - down * 1.23;   // agachado → alto (0.45) → mat (-0.78)
+      p.hipsX = grab * 0.15 - lift * 0.75 - down * 0.9;   // doblado al frente → bascula → tumbado (-1.5)
+      p.tz = -grab * 0.1 - down * 0.1;
+      p.lean = 0.1 + grab * 0.35 - lift * 0.3 - down * 0.25; // doblado → arquea atrás → plano
+      p.headX = 0.08 + grab * 0.1 - lift * 0.35 + down * 0.35;
+      // piernas: base plantada → patalean en el aire → se pliegan al caer
+      p.thL = -0.22 - grab * 0.1 - lift * 0.55 - down * 0.2; p.shL = 0.35 + lift * 0.6 + down * 0.5;
+      p.thR = 0.18 - lift * 0.75 - down * 0.5; p.shR = 0.3 + grab * 0.1 + lift * 0.6 + down * 0.45;
+      // brazos: forcejean abajo con el agarre → se agitan en el aire → guardia tumbada
+      p.uaR = [-1.0 + grab * 0.5 - lift * 1.2 + down * 0.3, 0, 0.3 + lift * 0.5 - down * 0.4]; p.faR = -2.0 + grab * 1.2 + lift * 0.6 - down * 1.6;
+      p.uaL = [-1.1 + grab * 0.5 - lift * 1.15 + down * 0.25, -0.2, -0.05 - lift * 0.5 + down * 0.4]; p.faL = -2.05 + grab * 1.25 + lift * 0.6 - down * 1.6;
       return p;
     }
 
-    // volado (suplex): lo levantan en arco, pasa INVERTIDO por encima del
-    // atacante y se estampa de espaldas; acaba tumbado
+    // volado (suplex, DESDE LA ESPALDA): el atacante le cierra el cerrojo
+    // por detrás, lo levanta en arco, pasa INVERTIDO por encima y se
+    // estampa delante; acaba tumbado. Sincronizado con el ciclo "suplex".
     case "volado": {
-      const u = clamp01(t / 1.5);
-      const lift = u < 0.35 ? easeOut(u / 0.35) : 1;             // se queda arriba hasta el slam
-      const flip = u < 0.3 ? 0 : easeIn(clamp01((u - 0.3) / 0.4));
-      const slam = u < 0.7 ? 0 : easeIn(clamp01((u - 0.7) / 0.2));
-      p.bob = lift * 0.55 - slam * 1.37;            // pico 0.55 en el aire → -0.82 en el mat
-      p.hipsX = -lift * 0.4 - flip * 2.2 + slam * 1.1; // invertido (-2.6) en el pico → tumbado (-1.5)
-      p.lean = 0.1 - slam * 0.2;
-      p.headX = 0.08 - lift * 0.3 + slam * 0.35;
-      // piernas: cuelgan → pasan por encima de la cabeza → se pliegan al impacto
-      p.thL = -0.22 - lift * 0.5 - flip * 0.7 + slam * 0.3; p.shL = 0.35 + lift * 0.5 + flip * 0.5 + slam * 0.3;
-      p.thR = 0.18 - lift * 0.45 - flip * 0.6 + slam * 0.35; p.shR = 0.3 + lift * 0.45 + flip * 0.45 + slam * 0.35;
-      // brazos: se agitan en el vuelo → protegen la caída
-      p.uaR = [-1.0 - lift * 0.6, 0, 0.3 + flip * 0.5 + slam * 0.1]; p.faR = -2.0 + lift * 0.9 - slam * 0.4;
-      p.uaL = [-1.1 - lift * 0.55, -0.2, -0.05 - flip * 0.5 - slam * 0.1]; p.faL = -2.05 + lift * 0.9 - slam * 0.4;
+      const u = clamp01(t / 1.8);
+      const grab = u < 0.28 ? easeOut(u / 0.28) : 1;                     // cerrojado 0–0.5 s
+      const lift = u < 0.28 ? 0 : u < 0.55 ? easeOut((u - 0.28) / 0.27) : 1; // sube 0.5–1.0 s (con el arco)
+      const flip = u < 0.33 ? 0 : easeIn(clamp01((u - 0.33) / 0.27));    // se invierte 0.6–1.1 s
+      const slam = u < 0.62 ? 0 : easeIn(clamp01((u - 0.62) / 0.16));    // se estampa 1.1–1.4 s
+      p.bob = -grab * 0.05 + lift * 0.55 - slam * 1.32;   // pico 0.5 en el aire → -0.82 en el mat
+      p.hipsX = grab * 0.1 - lift * 0.5 - flip * 2.1 + slam * 1.0; // invertido (-2.5) → tumbado (-1.5)
+      p.lean = 0.1 + grab * 0.25 - slam * 0.35;
+      p.headX = 0.08 + grab * 0.15 - lift * 0.4 + slam * 0.55;
+      // piernas: base → cuelgan → pasan por encima de la cabeza → se pliegan
+      p.thL = -0.22 - grab * 0.05 - lift * 0.5 - flip * 0.55 + slam * 0.25; p.shL = 0.35 + lift * 0.5 + flip * 0.45 + slam * 0.15;
+      p.thR = 0.18 - lift * 0.45 - flip * 0.6 + slam * 0.4; p.shR = 0.3 + grab * 0.1 + lift * 0.45 + flip * 0.45 + slam * 0.25;
+      // brazos: forcejean el cerrojo → se agitan en el vuelo → protegen la caída
+      p.uaR = [-1.0 + grab * 0.45 - lift * 1.15, 0, 0.3 + flip * 0.4 + slam * 0.1]; p.faR = -2.0 + grab * 1.1 + lift * 0.7 - slam * 1.6;
+      p.uaL = [-1.1 + grab * 0.45 - lift * 1.1, -0.2, -0.05 - flip * 0.4 - slam * 0.1]; p.faL = -2.05 + grab * 1.15 + lift * 0.7 - slam * 1.6;
       return p;
     }
 
