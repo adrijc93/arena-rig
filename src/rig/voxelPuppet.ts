@@ -16,9 +16,8 @@ import * as THREE from "three";
    ════════════════════════════════════════════════════════════════ */
 
 /** Facciones de la cara: TODO va impreso en la textura 360° del cilindro
-    (así hace LEGO las minifiguras: cabeza lisa + tampografía plana).
-    Lo único 3D es el pelo/sombrero y el stud — como las piezas de pelo
-    moldeadas de LEGO. Sin nariz ni relieve: la cara es tinta plana. */
+    (técnica de las minifiguras: cabeza lisa + impresión plana).
+    Lo único 3D es el pelo/sombrero. Sin nariz ni relieve: tinta plana. */
 export interface FaceSpec {
   brows?: "normal" | "fruncido";
   mouth?: "sonrisa" | "serio" | "smirk";
@@ -65,13 +64,14 @@ function box(w: number, h: number, d: number, color: number, x = 0, y = 0, z = 0
   return m;
 }
 
-function cyl(rTop: number, rBot: number, h: number, color: number, x = 0, y = 0, z = 0): THREE.Mesh {
+function cyl(rTop: number, rBot: number, h: number, color: number, x = 0, y = 0, z = 0, collide?: "core" | "limb"): THREE.Mesh {
   const m = new THREE.Mesh(
     new THREE.CylinderGeometry(rTop, rBot, h, 20),
     new THREE.MeshStandardMaterial({ color, roughness: 0.9 })
   );
   m.position.set(x, y, z);
   m.castShadow = true;
+  if (collide) m.userData.collide = collide;
   return m;
 }
 
@@ -256,13 +256,9 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
   hm.userData.collide = "core";
   head.add(hm);
 
-  // pelo: bloques sobre/alrededor de la cabeza (corto, melena o cresta)
+  // pelo: piezas 3D sobre/alrededor de la cabeza (coronilla lisa, sin stud)
   const hair = face?.hair ?? "none";
   const hc = face?.hairColor ?? 0x2b2118;
-  // cabeza calva o rapada: el icónico STUD de LEGO en la coronilla
-  if (hair === "none" || hair === "rapado") {
-    head.add(cyl(hs * 0.20, hs * 0.20, 0.05, skin, 0, top + 0.02, 0));
-  }
   if (hair === "papakha") {
     // papakha de lana (el gorro icónico de Khabib): cilindro grueso que
     // SOBRESALE de la cabeza, color crema — se reconoce al instante
@@ -290,31 +286,34 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
     head.add(box(hs + 0.03, 0.20, 0.06, spec.helmet, 0, 0.16, -(hs / 2 + 0.005)));
   }
 
-  // ── brazos (bisagras en hombro y codo) ───────────────────
+  // ── brazos CILÍNDRICOS (bisagras en hombro y codo) ───────
+  // como la cabeza: tubos con un leve estrechamiento hacia la articulación
   for (const s of [1, -1] as const) {
     const side = s === 1 ? "l" : "r";
     const ua = joint(spine, `upperarm.${side}`, 0.37 * s, 0.37, 0);
-    ua.add(box(0.16, 0.30, 0.17, sleeves, 0, -0.16, 0, "limb"));
+    ua.add(cyl(0.09, 0.08, 0.30, sleeves, 0, -0.16, 0, "limb"));           // manga
     if (spec.shoulderPads !== undefined) {
       ua.add(box(0.22, 0.10, 0.23, spec.shoulderPads, 0, -0.02, 0)); // hombrera
     }
     const fa = joint(ua, `lowerarm.${side}`, 0, -0.34, 0);
-    fa.add(box(0.14, 0.26, 0.15, skin, 0, -0.14, 0, "limb"));
+    fa.add(cyl(0.075, 0.065, 0.26, skin, 0, -0.14, 0, "limb"));            // antebrazo
     if (spec.gloves !== undefined) {
-      fa.add(box(0.19, 0.17, 0.20, spec.gloves, 0, -0.33, 0, "limb")); // guante MMA
+      fa.add(cyl(0.10, 0.095, 0.17, spec.gloves, 0, -0.33, 0, "limb")); // guante MMA
     } else {
-      fa.add(box(0.155, 0.13, 0.16, skin, 0, -0.33, 0, "limb")); // puño
+      fa.add(cyl(0.08, 0.075, 0.13, skin, 0, -0.33, 0, "limb"));      // puño
     }
   }
 
-  // ── piernas (bisagras en cadera y rodilla) ───────────────
+  // ── piernas CILÍNDRICAS (bisagras en cadera y rodilla) ────
   for (const s of [1, -1] as const) {
     const side = s === 1 ? "l" : "r";
     const ul = joint(hips, `upperleg.${side}`, 0.15 * s, -0.10, 0);
-    ul.add(box(0.21, 0.26, 0.22, pants, 0, -0.14, 0, "limb"));
+    ul.add(cyl(0.115, 0.095, 0.26, pants, 0, -0.14, 0, "limb"));           // muslo
     const ll = joint(ul, `lowerleg.${side}`, 0, -0.29, 0);
-    ll.add(box(0.17, 0.24, 0.18, skin, 0, -0.13, 0, "limb"));
-    ll.add(box(0.18, 0.10, 0.28, feet, 0, -0.21, 0.05, "limb")); // pie hacia +Z
+    ll.add(cyl(0.09, 0.075, 0.24, skin, 0, -0.13, 0, "limb"));             // espinilla
+    const pie = cyl(0.055, 0.055, 0.28, feet, 0, -0.21, 0.05, "limb"); // pie redondo hacia +Z
+    pie.rotation.x = Math.PI / 2;
+    ll.add(pie);
   }
 
   return root;
