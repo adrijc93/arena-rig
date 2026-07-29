@@ -28,6 +28,21 @@ export interface FaceSpec {
   hairColor?: number;
 }
 
+/** Cuerpo: complexión + TEXTURAS impresas (misma técnica que la cara:
+    líneas sólidas sobre el color base, como los torsos de minifigura).
+    La definición muscular y los tatuajes van pintados en el torso y,
+    opcionalmente, en mangas de los antebrazos. */
+export interface BodySpec {
+  build?: "delgado" | "normal" | "fornido";
+  muscle?: "light" | "media" | "fuerte";   // intensidad de la definición impresa
+  tattoos?: {
+    chest?: "gorila" | "script";           // pieza de pecho
+    belly?: "tigre";                       // abdomen
+    back?: "cruz-alas";                    // espalda
+    armL?: "manga"; armR?: "manga";        // manga de tatuajes en el antebrazo
+  };
+}
+
 export interface PuppetSpec {
   skin?: number;         // piel
   torso?: number;        // camiseta / torso desnudo
@@ -36,6 +51,7 @@ export interface PuppetSpec {
   feet?: number;         // calzado / pies descalzos
   headSize?: number;     // diámetro/altura del cilindro de la cabeza
   face?: FaceSpec;       // facciones: cejas, barba, pelo
+  body?: BodySpec;       // complexión, definición muscular y tatuajes
   gloves?: number;       // puños grandes de este color (MMA)
   helmet?: number;       // casco metálico con cresta (LUDUS)
   chestPlate?: number;   // peto por encima del torso (LUDUS)
@@ -213,6 +229,145 @@ function headMesh(skin: number, size: number, face?: FaceSpec): THREE.Mesh {
   return m;
 }
 
+/* ── TEXTURAS DE CUERPO ──────────────────────────────────────────
+   Mismo lenguaje que la cara: líneas sólidas, sin degradados.
+   La definición usa un marrón translúcido (se adapta a cualquier tono
+   de piel); los tatuajes van en tinta oscura azul-negra como los reales. */
+
+/** Torso delante/espalda (canvas 128×128 por cara del bloque) */
+function bodyTexture(base: number, body: BodySpec, part: "front" | "back"): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 128; c.height = 128;
+  const g = c.getContext("2d")!;
+  g.fillStyle = css(base);
+  g.fillRect(0, 0, 128, 128);
+  const ml = body.muscle === "fuerte" ? 0.7 : body.muscle === "light" ? 0.32 : 0.5;
+  const M = `rgba(40,25,16,${ml})`;         // líneas de definición
+  const TAT = "rgba(22,20,26,0.85)";        // tinta de tatuaje
+  const line = (x: number, y: number, w: number, h: number, rot = 0, cx = 0, cy = 0) => {
+    g.save(); g.translate(x, y); g.rotate(rot); g.fillRect(cx, cy, w, h); g.restore();
+  };
+
+  if (part === "front") {
+    // ── definición frontal ──
+    g.fillStyle = M;
+    line(40, 16, 22, 3, -0.22);              // clavícula izquierda
+    line(88, 16, 22, 3, 0.22, -22, 0);       // clavícula derecha
+    g.fillRect(63, 24, 2, 82);               // línea media (esternón → abdomen)
+    line(34, 46, 26, 3, 0.30, -13, 0);       // pectoral izquierdo
+    line(94, 46, 26, 3, -0.30, -13, 0);      // pectoral derecho
+    g.fillRect(44, 60, 40, 3);               // abs: tres cortes horizontales
+    g.fillRect(44, 74, 40, 3);
+    g.fillRect(44, 88, 40, 3);
+    line(30, 62, 3, 32, -0.12);              // oblicuo izquierdo
+    line(98, 62, 3, 32, 0.12);               // oblicuo derecho
+    g.fillRect(62, 102, 4, 5);               // ombligo
+
+    // ── tatuajes frontales ──
+    const t = body.tattoos;
+    if (t?.chest === "gorila") {
+      // gorila coronado (pecho del Notorio): corona en zigzag + cara
+      g.fillStyle = TAT;
+      g.fillRect(50, 16, 7, 7);              // corona: tres picos
+      g.fillRect(60, 12, 8, 11);
+      g.fillRect(71, 16, 7, 7);
+      g.fillRect(50, 27, 28, 15);            // cabeza del gorila
+      g.fillStyle = css(base);
+      g.fillRect(56, 31, 4, 4);              // ojos (huecos de piel)
+      g.fillRect(68, 31, 4, 4);
+      g.fillStyle = TAT;
+      g.fillRect(56, 39, 16, 8);             // hocico
+      g.fillStyle = "#ffffff";
+      g.fillRect(58, 43, 3, 4);              // colmillos
+      g.fillRect(67, 43, 3, 4);
+    } else if (t?.chest === "script") {
+      // escritura en el pectoral derecho (el "Philippians" de Huesos):
+      // tres renglones de trazo fino ondulado
+      g.fillStyle = TAT;
+      line(88, 30, 22, 2, 0.10, -11, 0);
+      line(88, 35, 26, 2, -0.06, -13, 0);
+      line(88, 40, 18, 2, 0.08, -9, 0);
+    }
+    if (t?.belly === "tigre") {
+      // rayas de tigre cruzando el abdomen bajo
+      g.fillStyle = TAT;
+      for (const [sx, sy, sr] of [[36, 92, 0.5], [92, 94, -0.5], [40, 102, 0.45], [88, 104, -0.45], [46, 112, 0.4], [82, 113, -0.4]] as const) {
+        line(sx, sy, 16, 3, sr, -8, 0);
+      }
+    }
+  } else {
+    // ── espalda ──
+    g.fillStyle = M;
+    g.fillRect(63, 12, 2, 88);               // columna
+    line(36, 30, 24, 3, 0.45, -12, 0);       // omóplato izquierdo
+    line(92, 30, 24, 3, -0.45, -12, 0);      // omóplato derecho
+    line(40, 52, 20, 3, 0.3, -10, 0);        // dorsales
+    line(88, 52, 20, 3, -0.3, -10, 0);
+    g.fillRect(48, 86, 32, 3);               // lumbar
+    if (body.tattoos?.back === "cruz-alas") {
+      // cruz con alas (espalda del Notorio)
+      g.fillStyle = TAT;
+      g.fillRect(61, 14, 6, 34);             // cruz
+      g.fillRect(48, 22, 32, 6);
+      for (const [wx, wy, wr] of [[44, 26, 0.6], [38, 34, 0.75], [84, 26, -0.6], [90, 34, -0.75]] as const) {
+        line(wx, wy, 18, 4, wr, 0, 0);       // plumas de las alas
+      }
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** Manga de tatuajes para el antebrazo (canvas 64×64 que envuelve 360°) */
+function sleeveTexture(base: number): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = 64; c.height = 64;
+  const g = c.getContext("2d")!;
+  g.fillStyle = css(base);
+  g.fillRect(0, 0, 64, 64);
+  const TAT = "rgba(22,20,26,0.85)";
+  g.fillStyle = TAT;
+  g.fillRect(0, 6, 64, 4);                   // brazalete superior
+  g.fillRect(0, 22, 64, 3);                  // brazalete medio
+  // motivos dispersos (rosas/simbolos) entre los brazaletes
+  for (const [px, py] of [[6, 14], [20, 12], [34, 15], [48, 13], [12, 30], [28, 32], [44, 29], [8, 40], [26, 42], [46, 41], [18, 50], [38, 52]] as const) {
+    g.fillRect(px, py, 5, 5);
+    g.fillStyle = css(base);
+    g.fillRect(px + 1, py + 1, 3, 3);        // centro de piel (flor)
+    g.fillStyle = TAT;
+  }
+  g.fillRect(0, 56, 64, 4);                  // brazalete de muñeca
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+/** torso con textura: caja con materiales por cara [±x, ±y, frente, espalda] */
+function torsoMesh(w: number, h: number, d: number, base: number, body: BodySpec, x = 0, y = 0, z = 0): THREE.Mesh {
+  const plain = new THREE.MeshStandardMaterial({ color: base, roughness: 0.9 });
+  const front = new THREE.MeshStandardMaterial({ map: bodyTexture(base, body, "front"), roughness: 0.9 });
+  const back = new THREE.MeshStandardMaterial({ map: bodyTexture(base, body, "back"), roughness: 0.9 });
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), [plain, plain, plain, plain, front, back]);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  m.userData.collide = "core";
+  return m;
+}
+
+/** cilindro con textura envolvente 360° (mangas de tatuajes) */
+function cylTex(rTop: number, rBot: number, h: number, tex: THREE.CanvasTexture, capColor: number, x = 0, y = 0, z = 0): THREE.Mesh {
+  const side = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9 });
+  const cap = new THREE.MeshStandardMaterial({ color: capColor, roughness: 0.9 });
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, 20, 1, false, Math.PI, Math.PI * 2), [side, cap, cap]);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  m.userData.collide = "limb";
+  return m;
+}
+
 export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
   const skin = spec.skin ?? D.skin;
   const torso = spec.torso ?? D.torso;
@@ -224,9 +379,18 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
   const root = new THREE.Group();
   root.name = "voxel-root";
 
+  // ── complexión: cuerpo ESTRECHO, con variantes por personaje ──
+  // (los luchadores de MMA sin BodySpec llevan definición "media" de serie)
+  const body = spec.body ?? (spec.gloves !== undefined ? { muscle: "media" as const } : undefined);
+  const build = body?.build ?? "normal";
+  const BW = build === "fornido" ? 0.54 : build === "delgado" ? 0.44 : 0.48;   // pecho
+  const BD = build === "fornido" ? 0.30 : 0.27;                                 // profundidad
+  const ARM_X = build === "fornido" ? 0.335 : build === "delgado" ? 0.285 : 0.31; // hombros
+  const PEL = build === "fornido" ? 0.35 : build === "delgado" ? 0.31 : 0.33;   // pelvis
+
   // ── cadera (raíz del rig) ────────────────────────────────
   const hips = joint(root, "hips", 0, 0.66, 0);
-  hips.add(box(0.36, 0.16, 0.26, pants, 0, -0.02, 0, "core"));
+  hips.add(box(PEL, 0.16, 0.25, pants, 0, -0.02, 0, "core"));
   if (spec.skirt !== undefined) {
     // faldón de tiras de cuero colgando de la cintura
     for (const [x, z, ry] of [[-0.13, 0.12, 0], [0, 0.14, 0], [0.13, 0.12, 0],
@@ -238,12 +402,13 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
     }
   }
 
-  // ── torso ────────────────────────────────────────────────
+  // ── torso: textura de músculos/tatuajes si hay BodySpec ──
   const spine = joint(hips, "spine", 0, 0.08, 0);
-  spine.add(box(0.58, 0.40, 0.32, torso, 0, 0.22, 0, "core"));
+  if (body) spine.add(torsoMesh(BW, 0.40, BD, torso, body, 0, 0.22, 0));
+  else spine.add(box(BW, 0.40, BD, torso, 0, 0.22, 0, "core"));
   if (spec.chestPlate !== undefined) {
     // peto: bloque ligeramente mayor envolviendo el torso
-    spine.add(box(0.62, 0.34, 0.36, spec.chestPlate, 0, 0.26, 0, "core"));
+    spine.add(box(BW + 0.04, 0.34, BD + 0.04, spec.chestPlate, 0, 0.26, 0, "core"));
   }
 
   // ── cabeza LEGO: cilindro liso con la cara impresa (~1/5 del total) ──
@@ -290,13 +455,18 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
   // como la cabeza: tubos con un leve estrechamiento hacia la articulación
   for (const s of [1, -1] as const) {
     const side = s === 1 ? "l" : "r";
-    const ua = joint(spine, `upperarm.${side}`, 0.37 * s, 0.37, 0);
+    const ua = joint(spine, `upperarm.${side}`, ARM_X * s, 0.37, 0);
     ua.add(cyl(0.09, 0.08, 0.30, sleeves, 0, -0.16, 0, "limb"));           // manga
     if (spec.shoulderPads !== undefined) {
       ua.add(box(0.22, 0.10, 0.23, spec.shoulderPads, 0, -0.02, 0)); // hombrera
     }
     const fa = joint(ua, `lowerarm.${side}`, 0, -0.34, 0);
-    fa.add(cyl(0.075, 0.065, 0.26, skin, 0, -0.14, 0, "limb"));            // antebrazo
+    const tat = s === 1 ? body?.tattoos?.armL : body?.tattoos?.armR;
+    if (tat === "manga") {
+      fa.add(cylTex(0.075, 0.065, 0.26, sleeveTexture(skin), skin, 0, -0.14, 0)); // manga de tatuajes
+    } else {
+      fa.add(cyl(0.075, 0.065, 0.26, skin, 0, -0.14, 0, "limb"));            // antebrazo
+    }
     if (spec.gloves !== undefined) {
       fa.add(cyl(0.10, 0.095, 0.17, spec.gloves, 0, -0.33, 0, "limb")); // guante MMA
     } else {
@@ -320,8 +490,8 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
 }
 
 /* ── presets de cara para el personalizador del lab ─────────────
-   Los "famosos" llevan tono de piel propio: parecidos reconocibles. */
-export interface FacePreset { id: string; label: string; skin?: number; face: FaceSpec }
+   Los "famosos" llevan piel, complexión, altura y tatuajes propios. */
+export interface FacePreset { id: string; label: string; skin?: number; face: FaceSpec; body?: BodySpec; heightFactor?: number }
 export const FACE_PRESETS: FacePreset[] = [
   { id: "base", label: "🙂 Base", face: {} },
   { id: "serio", label: "😠 Serio", face: { brows: "fruncido", mouth: "serio" } },
@@ -333,14 +503,20 @@ export const FACE_PRESETS: FacePreset[] = [
   { id: "veterano", label: "🧓 Veterano", face: { hair: "corto", hairColor: 0x9a938c, beard: "completa", beardColor: 0x8a837c, wrinkles: true } },
   { id: "smirk", label: "😏 Mueca", face: { mouth: "smirk", brows: "fruncido" } },
   // ── inspirados en leyendas de UFC ──
-  { id: "aguila", label: "🦅 El Águila", skin: 0xc89878,
-    face: { hair: "papakha", hairColor: 0xe8dcc0, beard: "completa", beardColor: 0x14100c, brows: "fruncido", mouth: "serio" } },
-  { id: "notorio", label: "☘️ El Notorio", skin: 0xdbb48a,
-    face: { hair: "corto", hairColor: 0x8a5c34, beard: "completa", beardColor: 0x8a5c34, brows: "fruncido", mouth: "smirk" } },
-  { id: "huesos", label: "🦴 Huesos", skin: 0x8a5f45,
-    face: { hair: "rapado", hairColor: 0x17110d, mouth: "serio", wrinkles: true } },
-  { id: "arana", label: "🕷️ La Araña", skin: 0x7a5138,
-    face: { hair: "rapado", hairColor: 0x17110d, beard: "stubble", mouth: "serio", wrinkles: true } },
-  { id: "lobo", label: "🐺 El Lobo", skin: 0xd0a884,
-    face: { hair: "corto", hairColor: 0x241a10, beard: "completa", beardColor: 0x241a10, brows: "fruncido" } },
+  { id: "aguila", label: "🦅 El Águila", skin: 0xc89878, heightFactor: 0.96,
+    face: { hair: "papakha", hairColor: 0xe8dcc0, beard: "completa", beardColor: 0x14100c, brows: "fruncido", mouth: "serio" },
+    body: { build: "fornido", muscle: "light" } },
+  { id: "notorio", label: "☘️ El Notorio", skin: 0xdbb48a, heightFactor: 0.99,
+    face: { hair: "corto", hairColor: 0x8a5c34, beard: "completa", beardColor: 0x8a5c34, brows: "fruncido", mouth: "smirk" },
+    body: { build: "normal", muscle: "media",
+      tattoos: { chest: "gorila", belly: "tigre", back: "cruz-alas", armL: "manga" } } },
+  { id: "huesos", label: "🦴 Huesos", skin: 0x8a5f45, heightFactor: 1.06,
+    face: { hair: "rapado", hairColor: 0x17110d, mouth: "serio", wrinkles: true },
+    body: { build: "delgado", muscle: "fuerte", tattoos: { chest: "script" } } },
+  { id: "arana", label: "🕷️ La Araña", skin: 0x7a5138, heightFactor: 1.01,
+    face: { hair: "rapado", hairColor: 0x17110d, beard: "stubble", mouth: "serio", wrinkles: true },
+    body: { build: "delgado", muscle: "fuerte" } },
+  { id: "lobo", label: "🐺 El Lobo", skin: 0xd0a884, heightFactor: 1.0,
+    face: { hair: "corto", hairColor: 0x241a10, beard: "completa", beardColor: 0x241a10, brows: "fruncido" },
+    body: { build: "fornido", muscle: "media" } },
 ];
