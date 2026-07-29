@@ -15,15 +15,16 @@ import * as THREE from "three";
    rotation.x negativo = miembro hacia delante.
    ════════════════════════════════════════════════════════════════ */
 
-/** Facciones de la cara: se dibujan en la textura (cejas, barba) o se
-    construyen con bloques (pelo). Todo opcional y combinable. */
+/** Facciones de la cara: TODO va impreso en la textura 360° del cilindro
+    (así hace LEGO las minifiguras: cabeza lisa + tampografía plana).
+    Lo único 3D es el pelo/sombrero y el stud — como las piezas de pelo
+    moldeadas de LEGO. Sin nariz ni relieve: la cara es tinta plana. */
 export interface FaceSpec {
   brows?: "normal" | "fruncido";
   mouth?: "sonrisa" | "serio" | "smirk";
   wrinkles?: boolean;    // arrugas de frente estilo LEGO (veteranos)
   beard?: "none" | "perilla" | "completa" | "stubble";
   beardColor?: number;
-  nose?: "recta" | "ancha" | "afilada" | "chata" | "aguilena";
   hair?: "none" | "rapado" | "corto" | "melena" | "cresta" | "papakha";
   hairColor?: number;
 }
@@ -82,11 +83,12 @@ function joint(parent: THREE.Object3D, name: string, x: number, y: number, z: nu
   return j;
 }
 
-/* Cara dibujada en canvas (256×128) que ENVUELVE el cilindro (360°):
-   los rasgos viven en el tercio central (el frente, +Z) y el resto del
-   lienzo es piel/pelo alrededor de la cabeza — como una minifigura LEGO.
-   PROPORCIÓN: los rasgos llenan el 60-70% del frente; si son pequeños,
-   la cabeza queda "en blanco" y sin personalidad. */
+/* Cara IMPRESA en canvas (256×128) que ENVUELVE el cilindro liso (360°).
+   ESTILO LEGO PURO: solo tintas sólidas y líneas nítidas — la tampografía
+   de LEGO no degrada, cada rasgo es una capa de tinta plana. Nada de
+   sombreado suave: las sombras translúcidas se leían como manchas.
+   Los rasgos viven en el tercio central (el frente, +Z); el resto del
+   lienzo es piel (y pelo rapado) alrededor de la cabeza. */
 function faceTexture(skin: number, face?: FaceSpec): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 256; c.height = 128;
@@ -94,125 +96,105 @@ function faceTexture(skin: number, face?: FaceSpec): THREE.CanvasTexture {
   g.fillStyle = css(skin);
   g.fillRect(0, 0, 256, 128);
   const CX = 128; // centro del frente (u=0.5 → +Z)
+  const INK = "#211d1a";   // tinta oscura: ojos y boca
+  const LINE = "#4a3020";  // líneas de contorno: marrón sólido
+
   // rapado al cero: velo de pelo muy corto ALREDEDOR de toda la coronilla
   if (face?.hair === "rapado") {
-    const hc2 = css(face?.hairColor ?? 0x17110d);
-    g.fillStyle = hc2;
-    g.globalAlpha = 0.38;
-    g.fillRect(0, 0, 256, 26);
-    g.globalAlpha = 0.18;
-    g.fillRect(0, 26, 256, 7);              // línea del pelo difuminada
+    g.fillStyle = css(face?.hairColor ?? 0x17110d);
+    g.globalAlpha = 0.4;
+    g.fillRect(0, 0, 256, 24);
+    g.globalAlpha = 0.2;
+    g.fillRect(0, 24, 256, 6);              // línea del pelo difuminada
     g.globalAlpha = 1;
   }
-  // sombreado (alfas fuertes: también debe verse sobre pieles oscuras)
-  g.fillStyle = "rgba(25,16,12,0.16)";
-  g.fillRect(CX - 32, 44, 26, 32);          // cuenca izquierda
-  g.fillRect(CX + 6, 44, 26, 32);           // cuenca derecha
-  g.fillStyle = "rgba(25,16,12,0.22)";
-  g.fillRect(CX - 7, 56, 14, 24);           // nariz
-  g.fillRect(CX - 7, 82, 14, 5);            // sombra bajo la nariz
-  g.fillStyle = "rgba(255,255,255,0.16)";
-  g.fillRect(CX - 7, 56, 4, 20);            // brillo del puente
-  g.fillStyle = "rgba(25,16,12,0.10)";
-  g.fillRect(CX - 38, 8, 76, 28);           // frente
-  g.fillStyle = "rgba(25,16,12,0.16)";
-  g.fillRect(CX - 28, 78, 16, 6);           // pómulo izquierdo
-  g.fillRect(CX + 12, 78, 16, 6);           // pómulo derecho
-  g.fillStyle = "rgba(120,60,50,0.28)";
-  g.fillRect(CX - 13, 86, 26, 11);          // labios (tinte cálido)
-  // ojos GRANDES
-  g.fillStyle = "#211d1a";
-  g.fillRect(CX - 27, 50, 16, 24);
-  g.fillRect(CX + 11, 50, 16, 24);
-  g.fillStyle = "#ffffff";
-  g.fillRect(CX - 24, 52, 5, 6);
-  g.fillRect(CX + 14, 52, 5, 6);
-  // boca GRANDE — la SEÑA DE IDENTIDAD del personaje (regla LEGO:
-  // cada cara licenciada tiene SU boca). sonrisa / serio / smirk torcida
-  g.fillStyle = "#211d1a";
-  if (face?.mouth === "serio") {
-    g.fillRect(CX - 18, 92, 36, 7);
-    g.fillStyle = "rgba(25,16,12,0.30)";
-    g.fillRect(CX - 20, 90, 4, 9);          // comisuras hundidas
-    g.fillRect(CX + 16, 90, 4, 9);
-  } else if (face?.mouth === "smirk") {
-    // mueca torcida de arrogante (McGregor): línea con UNA comisura subida
-    g.fillRect(CX - 16, 93, 28, 6);
-    g.fillRect(CX + 8, 86, 7, 8);           // comisura derecha sube
-    g.fillStyle = "rgba(25,16,12,0.30)";
-    g.fillRect(CX - 19, 91, 4, 8);
-  } else {
-    g.fillRect(CX - 14, 92, 28, 7);
-    g.fillRect(CX - 19, 86, 6, 7);
-    g.fillRect(CX + 13, 86, 6, 7);
-  }
-  /* LÍNEAS DE CONTORNO LEGO: el parecido se logra con líneas nítidas
-     oscuras (cheek lines, chin lines, ojeras), NO con más sombreado */
-  g.fillStyle = "rgba(60,38,24,0.50)";
-  g.fillRect(CX - 26, 76, 13, 3);           // ojera izquierda
-  g.fillRect(CX + 13, 76, 13, 3);           // ojera derecha
-  g.save(); g.translate(CX - 32, 84); g.rotate(0.45); g.fillRect(0, 0, 12, 3); g.restore();   // cheek line izq
-  g.save(); g.translate(CX + 20, 84); g.rotate(-0.45); g.fillRect(0, 0, 12, 3); g.restore();  // cheek line der
-  g.fillRect(CX - 9, 112, 18, 3);           // chin line
+
+  // arrugas de frente (veteranos): tres líneas sólidas
   if (face?.wrinkles) {
-    // arrugas de frente (personajes veteranos, estilo LEGO clásico)
-    g.fillRect(CX - 28, 14, 56, 3);
-    g.fillRect(CX - 24, 22, 48, 3);
-    g.fillRect(CX - 28, 30, 56, 3);
+    g.fillStyle = LINE;
+    g.fillRect(CX - 26, 16, 52, 3);
+    g.fillRect(CX - 22, 24, 44, 3);
+    g.fillRect(CX - 26, 32, 52, 3);
   }
-  // cejas GRANDES del COLOR DEL VELLO (regla LEGO: las cejas delatan al
-  // personaje); barba si la hay, si no el pelo — nunca el gorro/papakha
+
+  // cejas SÓLIDAS del color del vello (barba si la hay, si no el pelo —
+  // nunca el gorro/papakha). El fruncido las inclina hacia el centro.
   const browC = css(face?.beardColor ?? face?.hairColor ?? 0x2b2118);
   g.fillStyle = browC;
-  g.fillRect(CX - 29, 42, 20, 7);
-  g.fillRect(CX + 9, 42, 20, 7);
   if (face?.brows === "fruncido") {
-    g.save();
-    g.translate(CX - 19, 44); g.rotate(0.34); g.fillRect(-14, -5, 28, 9);
-    g.restore();
-    g.save();
-    g.translate(CX + 19, 44); g.rotate(-0.34); g.fillRect(-14, -5, 28, 9);
-    g.restore();
+    g.save(); g.translate(CX - 19, 44); g.rotate(0.34); g.fillRect(-14, -4, 28, 8); g.restore();
+    g.save(); g.translate(CX + 19, 44); g.rotate(-0.34); g.fillRect(-14, -4, 28, 8); g.restore();
+  } else {
+    g.fillRect(CX - 29, 42, 20, 7);
+    g.fillRect(CX + 9, 42, 20, 7);
   }
-  // vello facial texturizado (envuelve el frente y los laterales)
+
+  // ojos: negro sólido con el puntito blanco icónico
+  g.fillStyle = INK;
+  g.fillRect(CX - 27, 52, 16, 22);
+  g.fillRect(CX + 11, 52, 16, 22);
+  g.fillStyle = "#ffffff";
+  g.fillRect(CX - 24, 55, 5, 6);
+  g.fillRect(CX + 14, 55, 5, 6);
+
+  // líneas de contorno: ojeras, cheek lines y chin line — el parecido se
+  // imprime con LÍNEAS, no con sombras (regla de oro de las caras LEGO)
+  g.fillStyle = LINE;
+  g.fillRect(CX - 25, 78, 12, 3);           // ojera izquierda
+  g.fillRect(CX + 13, 78, 12, 3);           // ojera derecha
+  g.save(); g.translate(CX - 33, 86); g.rotate(0.45); g.fillRect(0, 0, 11, 3); g.restore();   // cheek line izq
+  g.save(); g.translate(CX + 22, 86); g.rotate(-0.45); g.fillRect(0, 0, 11, 3); g.restore();  // cheek line der
+  g.fillRect(CX - 8, 112, 16, 3);           // chin line
+
+  // BARBA impresa como MARCO que enmarca la boca, nunca como bloque:
+  // bigote fino + patillas que suben por los lados + banda de mandíbula
+  // BAJA. La boca siempre queda visible en el hueco (y94-100).
   const bc = css(face?.beardColor ?? 0x2b2118);
-  if (face?.beard === "perilla") {
+  if (face?.beard === "completa") {
     g.fillStyle = bc;
-    g.fillRect(CX - 16, 96, 32, 30);        // mechón: barbilla entera
-    g.fillRect(CX - 13, 88, 26, 9);         // bigote unido
-  } else if (face?.beard === "completa") {
-    g.fillStyle = bc;
-    g.fillRect(CX - 40, 96, 80, 32);        // mandíbula (cruza el frente)
-    g.fillRect(CX - 46, 60, 14, 40);        // patilla izquierda
-    g.fillRect(CX + 32, 60, 14, 40);        // patilla derecha
-    g.fillRect(CX - 22, 88, 44, 9);         // bigote (tapa la boca, como en real)
-    // textura: píxeles claros dispersos para que no sea un bloque plano
-    g.fillStyle = "rgba(255,255,255,0.08)";
-    for (const [px, py] of [[-36, 104], [-24, 118], [-10, 106], [4, 120], [18, 108], [30, 118], [-42, 72], [36, 76], [-14, 92], [14, 92]] as const) {
-      g.fillRect(CX + px, py, 4, 4);
+    g.fillRect(CX - 20, 84, 40, 6);         // bigote fino sobre la boca
+    g.fillRect(CX - 46, 58, 11, 50);        // patilla izquierda
+    g.fillRect(CX + 35, 58, 11, 50);        // patilla derecha
+    g.fillRect(CX - 44, 106, 88, 22);       // banda de mandíbula (baja)
+    // trazos de pelo: líneas cortas en tono claro dentro de la barba
+    g.fillStyle = "rgba(255,255,255,0.14)";
+    for (const [px, py] of [[-34, 112], [-14, 116], [8, 113], [28, 117], [-41, 70], [39, 74]] as const) {
+      g.fillRect(CX + px, py, 3, 9);
     }
+  } else if (face?.beard === "perilla") {
+    g.fillStyle = bc;
+    g.fillRect(CX - 14, 86, 28, 5);         // bigote
+    g.fillRect(CX - 11, 102, 22, 26);       // mechón de la barbilla
   } else if (face?.beard === "stubble") {
-    g.fillStyle = "rgba(35,28,22,0.32)";
-    g.fillRect(CX - 38, 94, 76, 32);        // mandíbula
-    g.fillRect(CX - 44, 62, 13, 36);        // patilla izquierda
-    g.fillRect(CX + 31, 62, 13, 36);        // patilla derecha
-    g.fillRect(CX - 18, 88, 36, 7);         // sombra de bigote
-  }
-  // con barba la boca se dibuja ENCIMA: hueco oscuro-rojizo dentro del
-  // vello (así hace LEGO las caras barbadas: la boca siempre se lee)
-  if (face?.beard === "completa" || face?.beard === "perilla") {
-    g.fillStyle = "#3d1f16";
-    if (face?.mouth === "serio") {
-      g.fillRect(CX - 14, 94, 28, 5);
-    } else if (face?.mouth === "smirk") {
-      g.fillRect(CX - 12, 95, 22, 5);
-      g.fillRect(CX + 6, 89, 6, 7);
-    } else {
-      g.fillRect(CX - 12, 94, 24, 5);
-      g.fillRect(CX - 15, 90, 4, 5);
-      g.fillRect(CX + 11, 90, 4, 5);
+    // sombra de barba incipiente: punteado suave siguiendo el marco
+    g.fillStyle = bc;
+    g.globalAlpha = 0.35;
+    for (let px = -40; px <= 37; px += 7) for (let py = 108; py <= 122; py += 7) {
+      g.fillRect(CX + px, py, 3, 3);        // mandíbula
     }
+    for (let py = 64; py <= 100; py += 7) {
+      g.fillRect(CX - 43, py, 3, 3);        // patilla izquierda
+      g.fillRect(CX + 40, py, 3, 3);        // patilla derecha
+    }
+    g.fillRect(CX - 16, 86, 32, 4);         // sombra de bigote
+    g.globalAlpha = 1;
   }
+
+  // BOCA — la seña de identidad del personaje. Va DESPUÉS de la barba:
+  // siempre legible en el hueco del marco (como las caras barbadas LEGO)
+  g.fillStyle = INK;
+  if (face?.mouth === "serio") {
+    g.fillRect(CX - 16, 94, 32, 5);         // línea recta
+  } else if (face?.mouth === "smirk") {
+    // mueca torcida de arrogante (McGregor): línea con UNA comisura subida
+    g.fillRect(CX - 14, 95, 24, 5);
+    g.fillRect(CX + 6, 89, 6, 7);           // comisura derecha sube
+  } else {
+    g.fillRect(CX - 14, 94, 28, 5);         // sonrisa: línea con las dos comisuras
+    g.fillRect(CX - 17, 90, 4, 5);
+    g.fillRect(CX + 13, 90, 4, 5);
+  }
+
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter;
   t.colorSpace = THREE.SRGBColorSpace;
@@ -264,11 +246,11 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
     spine.add(box(0.62, 0.34, 0.36, spec.chestPlate, 0, 0.26, 0, "core"));
   }
 
-  // ── cabeza LEGO: cilindro (~1/5 del total) ──
+  // ── cabeza LEGO: cilindro liso con la cara impresa (~1/5 del total) ──
   const head = joint(spine, "head", 0, 0.44, 0);
   const face = spec.face;
   const hm = headMesh(skin, hs, face);
-  const cy = 0.05 + hs / 2;      // la base del cubo queda 0.05 sobre la articulación
+  const cy = 0.05 + hs / 2;      // la base del cilindro queda 0.05 sobre la articulación
   const top = 0.05 + hs;         // superficie superior de la cabeza
   hm.position.set(0, cy, 0);
   hm.userData.collide = "core";
@@ -298,60 +280,6 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
     head.add(box(0.05, 0.22, hs * 0.7, hc, hs / 2 + 0.01, top - 0.10, -0.03));       // lado derecho
   } else if (hair === "cresta") {
     head.add(box(0.07, 0.16, hs + 0.06, hc, 0, top + 0.08, -0.02));
-  }
-
-  // ── RELIEVE FACIAL 3D: la cara sobresale del cubo ────────────
-  // La textura solo se lee de frente; el relieve (nariz, orejas, cejas,
-  // barba 3D) se lee desde CUALQUIER ángulo y recibe luz y sombra.
-  const zf = hs / 2;                       // plano frontal de la cara
-  // nariz 3D con FORMAS: cada luchador tiene la suya (perfil reconocible)
-  const nose = face?.nose ?? "recta";
-  if (nose === "ancha") {
-    // ancha y aplastada (Jon Jones)
-    head.add(box(hs * 0.26, hs * 0.16, 0.05, skin, 0, cy, zf + 0.02));
-  } else if (nose === "afilada") {
-    // fina y larga, sobresale más (McGregor)
-    head.add(box(hs * 0.12, hs * 0.26, 0.07, skin, 0, cy + hs * 0.03, zf + 0.028));
-  } else if (nose === "chata") {
-    // ancha pero baja y pegada (Anderson Silva)
-    head.add(box(hs * 0.24, hs * 0.11, 0.035, skin, 0, cy - hs * 0.02, zf + 0.012));
-  } else if (nose === "aguilena") {
-    // puente alto que sobresale arriba, cae recta (Khabib)
-    const nb = box(hs * 0.14, hs * 0.26, 0.06, skin, 0, cy + hs * 0.05, zf + 0.02);
-    nb.rotation.x = -0.18;
-    head.add(nb);
-  } else {
-    // recta: la estándar
-    head.add(box(hs * 0.16, hs * 0.20, 0.05, skin, 0, cy + hs * 0.02, zf + 0.02));
-  }
-  // orejas
-  head.add(box(0.03, hs * 0.22, hs * 0.16, skin, -(zf + 0.008), cy + 0.02, -0.01));
-  head.add(box(0.03, hs * 0.22, hs * 0.16, skin, zf + 0.008, cy + 0.02, -0.01));
-  // cejas en relieve (solo fruncido: marca el enfado y da sombra sobre los ojos)
-  const bc3 = face?.beardColor ?? 0x2b2118;
-  if (face?.brows === "fruncido") {
-    const bl = box(hs * 0.30, 0.028, 0.03, bc3, -hs * 0.18, cy + hs * 0.23, zf + 0.012);
-    bl.rotation.z = -0.22; head.add(bl);
-    const br = box(hs * 0.30, 0.028, 0.03, bc3, hs * 0.18, cy + hs * 0.23, zf + 0.012);
-    br.rotation.z = 0.22; head.add(br);
-  }
-  // barba 3D ESCALONADA: bigote, mejillas, mandíbula y punta, cada una a
-  // su profundidad, y la barba CUELGA bajo el mentón como una de verdad.
-  // (La placa única de antes parecía un bloque flotando delante de la cara.)
-  if (face?.beard === "completa") {
-    // empieza BAJO la boca: deja libres ojos, nariz y pómulos (si sube,
-    // se convierte en un muro que se traga la cara)
-    head.add(box(hs * 0.46, 0.04, 0.03, bc3, 0, cy - hs * 0.15, zf + 0.008));            // bigote bajo la nariz
-    head.add(box(hs * 0.86, hs * 0.13, 0.028, bc3, 0, cy - hs * 0.29, zf + 0.005));      // mejillas
-    head.add(box(hs * 0.78, hs * 0.20, 0.042, bc3, 0, cy - hs * 0.43, zf + 0.010));      // mandíbula principal
-    head.add(box(hs * 0.55, hs * 0.17, 0.06, bc3, 0, cy - hs * 0.58, zf + 0.015));       // punta de la barbilla (cuelga)
-    head.add(box(0.04, hs * 0.50, hs * 0.55, bc3, -(zf + 0.008), cy - hs * 0.20, 0.02)); // patilla/mejilla izq
-    head.add(box(0.04, hs * 0.50, hs * 0.55, bc3, zf + 0.008, cy - hs * 0.20, 0.02));    // patilla/mejilla der
-    head.add(box(hs * 0.62, 0.06, hs * 0.68, bc3, 0, cy - hs / 2 + 0.012, 0.02));        // bajo la barbilla
-  } else if (face?.beard === "perilla") {
-    head.add(box(hs * 0.44, 0.035, 0.028, bc3, 0, cy - hs * 0.15, zf + 0.006));          // bigote
-    head.add(box(hs * 0.38, hs * 0.17, 0.042, bc3, 0, cy - hs * 0.36, zf + 0.012));      // mechón
-    head.add(box(hs * 0.27, hs * 0.14, 0.052, bc3, 0, cy - hs * 0.50, zf + 0.022));      // punta del mechón (cuelga)
   }
 
   if (spec.helmet !== undefined) {
@@ -407,13 +335,13 @@ export const FACE_PRESETS: FacePreset[] = [
   { id: "smirk", label: "😏 Mueca", face: { mouth: "smirk", brows: "fruncido" } },
   // ── inspirados en leyendas de UFC ──
   { id: "aguila", label: "🦅 El Águila", skin: 0xc89878,
-    face: { hair: "papakha", hairColor: 0xe8dcc0, beard: "completa", beardColor: 0x14100c, brows: "fruncido", mouth: "serio", nose: "aguilena" } },
+    face: { hair: "papakha", hairColor: 0xe8dcc0, beard: "completa", beardColor: 0x14100c, brows: "fruncido", mouth: "serio" } },
   { id: "notorio", label: "☘️ El Notorio", skin: 0xdbb48a,
-    face: { hair: "corto", hairColor: 0x8a5c34, beard: "completa", beardColor: 0x8a5c34, brows: "fruncido", mouth: "smirk", nose: "afilada" } },
+    face: { hair: "corto", hairColor: 0x8a5c34, beard: "completa", beardColor: 0x8a5c34, brows: "fruncido", mouth: "smirk" } },
   { id: "huesos", label: "🦴 Huesos", skin: 0x8a5f45,
-    face: { hair: "rapado", hairColor: 0x17110d, mouth: "serio", nose: "ancha", wrinkles: true } },
+    face: { hair: "rapado", hairColor: 0x17110d, mouth: "serio", wrinkles: true } },
   { id: "arana", label: "🕷️ La Araña", skin: 0x7a5138,
-    face: { hair: "rapado", hairColor: 0x17110d, beard: "stubble", mouth: "serio", nose: "chata", wrinkles: true } },
+    face: { hair: "rapado", hairColor: 0x17110d, beard: "stubble", mouth: "serio", wrinkles: true } },
   { id: "lobo", label: "🐺 El Lobo", skin: 0xd0a884,
-    face: { hair: "corto", hairColor: 0x241a10, beard: "completa", beardColor: 0x241a10, brows: "fruncido", nose: "recta" } },
+    face: { hair: "corto", hairColor: 0x241a10, beard: "completa", beardColor: 0x241a10, brows: "fruncido" } },
 ];
