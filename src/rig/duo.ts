@@ -87,3 +87,130 @@ export const DUO: Record<string, DuoCfg> = {
   "espalda":  { def: "espalda", mode: "behind" },
   "mataleon": { def: "espalda", mode: "behind" },
 };
+
+/* ════════════════════════════════════════════════════════════════
+   SECUENCIAS — el duelo con guion.
+   Para golpes y derribos el rival NO repite siempre lo mismo:
+   hay varios RESULTADOS que se alternan ciclo a ciclo
+   (defiende / le entra limpio / cae derribado).
+   Cada resultado coreografía a AMBOS por tramos ("beats"):
+   tt = t % T; el beat activo es el que contiene tt; su reloj local
+   tm = tt - from (los movimientos cíclicos hacen %periodo interno,
+   así que el impacto cae siempre en el mismo punto del beat).
+   Los impactos se alinean empezando ataque y defensa en el mismo
+   `from` (actúan en el mismo % de su ciclo); "golpeado" empieza
+   justo en el instante del impacto.
+   ════════════════════════════════════════════════════════════════ */
+
+export interface DuoBeat { move: string; from: number; to: number }
+export interface DuoOutcome { atk: DuoBeat[]; def: DuoBeat[] }
+export interface DuoSeq { T: number; outcomes: DuoOutcome[] }
+
+/** Beat activo en tt (s dentro del ciclo) y su reloj local */
+export function duoBeatAt(beats: DuoBeat[], tt: number): { move: string; tm: number } {
+  let b = beats[0];
+  for (const x of beats) {
+    if (tt >= x.from && tt < x.to) { b = x; break; }
+    b = x;                       // pasado el último: se queda en el último
+  }
+  return { move: b.move, tm: tt - b.from };
+}
+
+export const DUO_SEQ: Record<string, DuoSeq> = {
+  /* ── JAB: para o le entra ── */
+  jab: {
+    T: 3.6,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "jab", from: 0.5, to: 1.4 }, { move: "guardia-mma", from: 1.4, to: 3.6 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "parada", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 3.6 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "jab", from: 0.5, to: 1.4 }, { move: "guardia-mma", from: 1.4, to: 3.6 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.72 }, { move: "golpeado", from: 0.72, to: 1.92 }, { move: "guardia-mma", from: 1.92, to: 3.6 }] },
+    ],
+  },
+  /* ── CROSS: retira o le entra ── */
+  cross: {
+    T: 3.8,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "cross", from: 0.5, to: 1.65 }, { move: "guardia-mma", from: 1.65, to: 3.8 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "retirada", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 3.8 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "cross", from: 0.5, to: 1.65 }, { move: "guardia-mma", from: 1.65, to: 3.8 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.79 }, { move: "golpeado", from: 0.79, to: 1.99 }, { move: "guardia-mma", from: 1.99, to: 3.8 }] },
+    ],
+  },
+  /* ── HOOK: se cubre o le entra ── */
+  hook: {
+    T: 3.8,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "hook", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 3.8 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "cobertura", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 3.8 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "hook", from: 0.5, to: 1.7 }, { move: "guardia-mma", from: 1.7, to: 3.8 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.8 }, { move: "golpeado", from: 0.8, to: 2.0 }, { move: "guardia-mma", from: 2.0, to: 3.8 }] },
+    ],
+  },
+  /* ── OVERHAND: lo bloquea… o KNOCKDOWN y a rematar al suelo ── */
+  overhand: {
+    T: 4.6,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.45 }, { move: "overhand", from: 0.45, to: 1.75 }, { move: "guardia-mma", from: 1.75, to: 4.6 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.45 }, { move: "bloqueo-alto", from: 0.45, to: 1.85 }, { move: "guardia-mma", from: 1.85, to: 4.6 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.45 }, { move: "overhand", from: 0.45, to: 1.75 }, { move: "guardia-mma", from: 1.75, to: 2.6 }, { move: "guardia-arriba", from: 2.6, to: 4.6 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.77 }, { move: "golpeado", from: 0.77, to: 1.25 }, { move: "derribado", from: 1.25, to: 3.2 }, { move: "guardia-abajo", from: 3.2, to: 4.6 }] },
+    ],
+  },
+  /* ── CIRCULAR ALTA: la bloquea o le entra ── */
+  circular: {
+    T: 4.4,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "circular", from: 0.5, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.4 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "bloqueo-alto", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 4.4 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "circular", from: 0.5, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.4 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.05 }, { move: "golpeado", from: 1.05, to: 2.25 }, { move: "guardia-mma", from: 2.25, to: 4.4 }] },
+    ],
+  },
+  /* ── LOW KICK: lo chequea o le entra ── */
+  "low-kick": {
+    T: 4.0,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "low-kick", from: 0.5, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.0 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "chequeo", from: 0.5, to: 1.9 }, { move: "guardia-mma", from: 1.9, to: 4.0 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.5 }, { move: "low-kick", from: 0.5, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.0 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.0 }, { move: "golpeado", from: 1.0, to: 2.2 }, { move: "guardia-mma", from: 2.2, to: 4.0 }] },
+    ],
+  },
+  /* ── DERRIBO (double leg): lo defiende con sprawl… o cae y le montan ── */
+  derribo: {
+    T: 5.2,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "derribo", from: 0.6, to: 3.0 }, { move: "guardia-mma", from: 3.0, to: 5.2 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "sprawl", from: 0.6, to: 2.6 }, { move: "guardia-mma", from: 2.6, to: 5.2 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "derribo", from: 0.6, to: 3.0 }, { move: "guardia-arriba", from: 3.0, to: 5.2 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "sprawl", from: 0.6, to: 1.4 }, { move: "derribado", from: 1.4, to: 3.4 }, { move: "guardia-abajo", from: 3.4, to: 5.2 }] },
+    ],
+  },
+  /* ── SINGLE LEG: igual: defensa o caída ── */
+  "single-leg": {
+    T: 5.0,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "single-leg", from: 0.6, to: 2.8 }, { move: "guardia-mma", from: 2.8, to: 5.0 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "sprawl", from: 0.6, to: 2.6 }, { move: "guardia-mma", from: 2.6, to: 5.0 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "single-leg", from: 0.6, to: 2.8 }, { move: "guardia-arriba", from: 2.8, to: 5.0 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "sprawl", from: 0.6, to: 1.4 }, { move: "derribado", from: 1.4, to: 3.2 }, { move: "guardia-abajo", from: 3.2, to: 5.0 }] },
+    ],
+  },
+  /* ── SUPLEX: siempre acaba en el suelo ── */
+  suplex: {
+    T: 4.6,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "suplex", from: 0.6, to: 3.0 }, { move: "guardia-arriba", from: 3.0, to: 4.6 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.3 }, { move: "derribado", from: 1.3, to: 3.3 }, { move: "guardia-abajo", from: 3.3, to: 4.6 }] },
+    ],
+  },
+  /* ── IPPON (seoi nage): proyección limpia, el atacante sigue de pie ── */
+  ippon: {
+    T: 4.4,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "ippon", from: 0.6, to: 2.6 }, { move: "guardia-mma", from: 2.6, to: 4.4 }],
+        def: [{ move: "guardia-mma", from: 0, to: 1.1 }, { move: "derribado", from: 1.1, to: 3.1 }, { move: "guardia-abajo", from: 3.1, to: 4.4 }] },
+    ],
+  },
+};
