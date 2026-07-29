@@ -10,22 +10,29 @@ import { MMA_MOVES, mmaPoseFor } from "./rig/mmaMoves";
 import { MODELS } from "./rig/manifest";
 import { buildVoxelPuppet, FACE_PRESETS } from "./rig/voxelPuppet";
 import type { PuppetSpec } from "./rig/voxelPuppet";
-import { DUO, DUO_DEFAULT } from "./rig/duo";
+import { DUO, DUO_DEFAULT, DUO_SEQ, duoBeatAt } from "./rig/duo";
 
-/* Puntería: qué brazo golpea y a qué altura apunta (cabeza o cuerpo).
-   Se aplica en modo duelo a quien ATACA (tú o el rival según el movimiento). */
-const AIM: Record<string, { side: "L" | "R"; lvl: "head" | "body" }> = {
-  jab: { side: "L", lvl: "head" },
-  hook: { side: "L", lvl: "head" },
-  backfist: { side: "L", lvl: "head" },
-  "gancho-cuerpo": { side: "L", lvl: "body" },
-  cross: { side: "R", lvl: "head" },
-  uppercut: { side: "R", lvl: "head" },
-  overhand: { side: "R", lvl: "head" },
-  superman: { side: "R", lvl: "head" },
-  codo: { side: "R", lvl: "head" },
-  "codo-giro": { side: "R", lvl: "head" },
+/* Puntería: qué brazos golpean y a qué altura apuntan (cabeza o cuerpo).
+   Se aplica en modo duelo a quien ATACA (tú o el rival según el movimiento).
+   ground & pound: los DOS brazos apuntan a la cara del que está abajo. */
+const AIM: Record<string, { side: "L" | "R"; lvl: "head" | "body" }[]> = {
+  jab: [{ side: "L", lvl: "head" }],
+  hook: [{ side: "L", lvl: "head" }],
+  backfist: [{ side: "L", lvl: "head" }],
+  "gancho-cuerpo": [{ side: "L", lvl: "body" }],
+  cross: [{ side: "R", lvl: "head" }],
+  uppercut: [{ side: "R", lvl: "head" }],
+  overhand: [{ side: "R", lvl: "head" }],
+  superman: [{ side: "R", lvl: "head" }],
+  codo: [{ side: "R", lvl: "head" }],
+  "codo-giro": [{ side: "R", lvl: "head" }],
+  "ground-pound": [{ side: "L", lvl: "head" }, { side: "R", lvl: "head" }],
 };
+
+/* Posiciones de suelo: para colocar la escena dinámicamente durante
+   las secuencias (el derribo empieza de pie y acaba en el suelo). */
+const GROUND_TOP = new Set(["guardia-arriba", "montada", "ground-pound", "side-control", "rodilla-vientre", "pase-guardia", "kimura", "americana"]);
+const GROUND_BOTTOM = new Set(["guardia-abajo", "media-guardia", "sumision", "triangulo", "shrimp", "upa", "derribado", "ko-plano"]);
 
 /* ════════════════════════════════════════════════════════════════
    ARENA RIG LAB — banco de pruebas del motor de animación.
@@ -168,7 +175,7 @@ export default function App() {
       // marioneta propia: 15 bloques rígidos sobre bisagras, sin skinning.
       // La ficha solo aporta la piel (spec); rig y animaciones son comunes.
       const fp = FACE_PRESETS.find((x) => x.id === faceRef.current) ?? FACE_PRESETS[0];
-      attacker = buildFighter(id, { ...f.spec, face: fp.face });
+      attacker = buildFighter(id, { ...f.spec, face: fp.face, skin: fp.skin ?? f.spec?.skin });
       attacker.root.userData.modelId = id;
       attacker.root.userData.faceId = faceRef.current;
       duoActive = duoRef.current;
@@ -194,13 +201,20 @@ export default function App() {
     // puntería: dirige el brazo golpeador hacia la CABEZA o el CUERPO del
     // rival. Se funde según lo extendido que esté el codo: en guardia no
     // manda, con el brazo estirado apunta de verdad al objetivo.
-    const vA = new THREE.Vector3(), vB = new THREE.Vector3(), qA = new THREE.Quaternion();
+    const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3();
+    const qA = new THREE.Quaternion(), qH = new THREE.Quaternion();
     const aimArm = (f: Fighter, side: "L" | "R", lvl: "head" | "body", tgt: Fighter) => {
       const rig = f.loaded.rig!, rigT = tgt.loaded.rig!;
       const ua = side === "L" ? rig.armUpL : rig.armUpR;
       const joint = lvl === "head" ? rigT.head : rigT.spine[rigT.spine.length - 1];
       joint.getWorldPosition(vA);
-      if (lvl === "head") vA.y += 0.22 * tgt.root.scale.x;
+      if (lvl === "head") {
+        // centro de la cara en espacio LOCAL de la cabeza → mundo: así
+        // apunta a la cara también con el rival TUMBADO (ground & pound)
+        joint.getWorldQuaternion(qH);
+        vC.set(0, 0.22 * tgt.root.scale.x, 0).applyQuaternion(qH);
+        vA.add(vC);
+      }
       ua.getWorldPosition(vB);
       vA.sub(vB).normalize();
       rig.charRoot.getWorldQuaternion(qA).invert();
@@ -235,9 +249,23 @@ export default function App() {
         void dt;
         const t = tFreeze.current ?? (performance.now() - t0) / 1000;
         if (attacker && attacker.loaded.rig) {
+          // ─── secuencia con guion (golpes y derribos con rival) ───
+          // varios RESULTADOS se alternan ciclo a ciclo: defiende / le
+          // entra / cae derribado. Los beats mandan sobre la tabla DUO.
+          const seq = setRef.current === "comun" ? undefined : DUO_SEQ[moveRef.current];
+          let beatA: { move: string; tm: number } | null = null;
+          let beatB: { move: string; tm: number } | null = null;
+          if (seq && rival) {
+            const tt = t % seq.T;
+            const oc = seq.outcomes[Math.floor(t / seq.T) % seq.outcomes.length];
+            beatA = duoBeatAt(oc.atk, tt);
+            beatB = duoBeatAt(oc.def, tt);
+          }
+
           let target: Pose;
           // pose de calibración: brazo derecho al frente — debe apuntar a cámara
           if (moveRef.current === "test-frente") target = { ...clonePose(GUARD), twist: 0, uaR: [-1.55, 0, 0], faR: -0.05, uaL: [-0.2, 0, -0.1], faL: -0.3 };
+          else if (beatA) target = mmaPoseFor(beatA.move, beatA.tm);
           else target = setRef.current === "comun"
             ? poseFor(moveRef.current as MoveId, t)
             : mmaPoseFor(moveRef.current, t);
@@ -251,18 +279,30 @@ export default function App() {
           // ─── disposición de escena ───
           const cfg = DUO[moveRef.current] ?? DUO_DEFAULT;
 
-          // reacción del rival (pose): reloj escalado pD/pA para ir A LA PAR
+          // reacción del rival (pose): beat de la secuencia, o reloj
+          // escalado pD/pA para ir A LA PAR con el ataque
           if (rival && rival.loaded.rig) {
             const pA = cfg.pA ?? 0, pD = cfg.pD ?? 0;
             const tB = pA > 0 && pD > 0 ? t * (pD / pA) : t;
-            let targetB = setRef.current === "comun" ? mmaPoseFor("guardia-mma", t) : mmaPoseFor(cfg.def, tB);
+            let targetB = beatB
+              ? mmaPoseFor(beatB.move, beatB.tm)
+              : setRef.current === "comun" ? mmaPoseFor("guardia-mma", t) : mmaPoseFor(cfg.def, tB);
             if (collideOn.current) targetB = resolvePoseCollisions(targetB);
             rival.prev = tFreeze.current !== null ? targetB : lerpPose(rival.prev, targetB, 0.4);
             applyPose(rival.loaded.rig, rival.prev);
           }
 
           if (rival) {
-            const mode = cfg.mode ?? "face";
+            // modo dinámico en secuencias: si alguno está en posición de
+            // suelo (montada, tumbado…), la escena pasa a modo "ground"
+            let mode = cfg.mode ?? "face";
+            let dynTop = cfg.top;
+            if (beatA || beatB) {
+              const mA = beatA?.move ?? "", mB = beatB?.move ?? "";
+              if (GROUND_TOP.has(mA) || GROUND_BOTTOM.has(mB)) { mode = "ground"; dynTop = true; }
+              else if (GROUND_BOTTOM.has(mA) || GROUND_TOP.has(mB)) { mode = "ground"; dynTop = false; }
+              else mode = "face";
+            }
             if (mode === "face") {
               const d = (cfg.dist ?? 1.1) / 2;
               attacker.root.position.set(0, attacker.baseY, d);
@@ -271,7 +311,7 @@ export default function App() {
               rival.root.rotation.y = 0;
             } else if (mode === "ground") {
               // top = arriba (de pie/su rodillas dominando); bottom = tumbado
-              const aTop = cfg.top !== false;
+              const aTop = dynTop !== false;
               attacker.root.position.set(0, attacker.baseY, aTop ? 0.42 : -0.3);
               attacker.root.rotation.y = aTop ? Math.PI : 0;
               rival.root.position.set(0, rival.baseY, aTop ? -0.3 : 0.42);
@@ -286,11 +326,11 @@ export default function App() {
             // ─── puntería: los golpes buscan la cabeza/cuerpo del rival ───
             attacker.root.updateMatrixWorld(true);
             rival.root.updateMatrixWorld(true);
-            const a = AIM[moveRef.current];
-            if (a) aimArm(attacker, a.side, a.lvl, rival);
+            const aList = AIM[beatA ? beatA.move : moveRef.current];
+            if (aList) for (const a of aList) aimArm(attacker, a.side, a.lvl, rival);
             else {
-              const b = setRef.current === "comun" ? undefined : AIM[cfg.def];
-              if (b) aimArm(rival, b.side, b.lvl, attacker);
+              const bList = setRef.current === "comun" ? undefined : AIM[beatB ? beatB.move : cfg.def];
+              if (bList) for (const b of bList) aimArm(rival, b.side, b.lvl, attacker);
             }
           } else {
             attacker.root.position.set(0, attacker.baseY, 0);
