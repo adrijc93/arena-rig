@@ -161,7 +161,7 @@ const PROFILES: Record<string, BoneNames> = {
     legUpL: ["mixamorig:LeftUpLeg", "mixamorigLeftUpLeg", "LeftUpLeg"],
     legLoL: ["mixamorig:LeftLeg", "mixamorigLeftLeg", "LeftLeg"],
     legUpR: ["mixamorig:RightUpLeg", "mixamorigRightUpLeg", "RightUpLeg"],
-    legLoL: ["mixamorig:RightLeg", "mixamorigRightLeg", "RightLeg"],
+    legLoR: ["mixamorig:RightLeg", "mixamorigRightLeg", "RightLeg"],
     footL: ["mixamorig:LeftFoot", "mixamorigLeftFoot", "LeftFoot"],
     footR: ["mixamorig:RightFoot", "mixamorigRightFoot", "RightFoot"],
     clavL: ["mixamorig:LeftShoulder", "mixamorigLeftShoulder", "LeftShoulder"],
