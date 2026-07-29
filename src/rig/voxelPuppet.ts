@@ -249,68 +249,96 @@ function bodyTexture(base: number, body: BodySpec, part: "front" | "back"): THRE
   };
 
   if (part === "front") {
-    // ── definición frontal ──
+    // ── definición frontal: formas musculares, no rejilla ──
     g.fillStyle = M;
-    line(40, 16, 22, 3, -0.22);              // clavícula izquierda
-    line(88, 16, 22, 3, 0.22, -22, 0);       // clavícula derecha
-    g.fillRect(63, 24, 2, 82);               // línea media (esternón → abdomen)
-    line(34, 46, 26, 3, 0.30, -13, 0);       // pectoral izquierdo
-    line(94, 46, 26, 3, -0.30, -13, 0);      // pectoral derecho
-    g.fillRect(44, 60, 40, 3);               // abs: tres cortes horizontales
-    g.fillRect(44, 74, 40, 3);
-    g.fillRect(44, 88, 40, 3);
-    line(30, 62, 3, 32, -0.12);              // oblicuo izquierdo
-    line(98, 62, 3, 32, 0.12);               // oblicuo derecho
-    g.fillRect(62, 102, 4, 5);               // ombligo
+    line(40, 15, 20, 3, -0.22);              // clavícula izquierda
+    line(88, 15, 20, 3, 0.22, -20, 0);       // clavícula derecha
+    g.fillRect(63, 24, 2, 22);               // esternón (solo entre pectorales)
+    // pectorales: arco inferior en dos trazos (forma de ⌒, no rectas)
+    line(33, 44, 22, 3, 0.38, -11, 0);       // pec izquierdo: caída exterior
+    line(30, 51, 16, 3, 0.08, -8, 0);        // pec izquierdo: base
+    line(95, 44, 22, 3, -0.38, -11, 0);      // pec derecho
+    line(98, 51, 16, 3, -0.08, -8, 0);
+    // serratos: tres muescas bajo cada pectoral (costillas)
+    for (const [sx, sy] of [[26, 58], [23, 65], [21, 72]] as const) line(sx, sy, 3, 6, -0.15);
+    for (const [sx, sy] of [[102, 58], [105, 65], [107, 72]] as const) line(sx, sy, 3, 6, 0.15);
+    // abs: ladrillos escalonados que se estrechan hacia abajo (six-pack)
+    g.fillRect(63, 56, 2, 44);               // línea media abdominal
+    g.fillRect(46, 62, 34, 3);
+    g.fillRect(48, 76, 32, 3);
+    g.fillRect(50, 90, 30, 3);
+    // V del adonis hacia la cadera
+    line(45, 106, 18, 3, 0.42, -9, 0);
+    line(83, 106, 18, 3, -0.42, -9, 0);
+    g.fillRect(62, 104, 4, 4);               // ombligo
 
     // ── tatuajes frontales ──
     const t = body.tattoos;
     if (t?.chest === "gorila") {
-      // gorila coronado (pecho del Notorio): corona en zigzag + cara
+      // gorila coronado (pecho del Notorio): corona con banda + cara grande
       g.fillStyle = TAT;
-      g.fillRect(50, 16, 7, 7);              // corona: tres picos
-      g.fillRect(60, 12, 8, 11);
-      g.fillRect(71, 16, 7, 7);
-      g.fillRect(50, 27, 28, 15);            // cabeza del gorila
+      g.fillRect(48, 14, 32, 4);             // corona: banda
+      g.fillRect(50, 7, 6, 8);               //         tres picos
+      g.fillRect(61, 5, 6, 10);
+      g.fillRect(72, 7, 6, 8);
+      g.fillRect(46, 20, 36, 18);            // cabeza
       g.fillStyle = css(base);
-      g.fillRect(56, 31, 4, 4);              // ojos (huecos de piel)
-      g.fillRect(68, 31, 4, 4);
+      g.fillRect(54, 25, 5, 5);              // ojos (huecos de piel)
+      g.fillRect(69, 25, 5, 5);
       g.fillStyle = TAT;
-      g.fillRect(56, 39, 16, 8);             // hocico
+      g.fillRect(54, 34, 20, 12);            // hocico
+      g.fillStyle = css(base);
+      g.fillRect(61, 36, 3, 3);              // fosas nasales
+      g.fillRect(65, 36, 3, 3);
+      g.fillRect(58, 41, 12, 3);             // boca
       g.fillStyle = "#ffffff";
-      g.fillRect(58, 43, 3, 4);              // colmillos
-      g.fillRect(67, 43, 3, 4);
+      g.fillRect(57, 41, 3, 5);              // colmillos
+      g.fillRect(68, 41, 3, 5);
     } else if (t?.chest === "script") {
       // escritura en el pectoral derecho (el "Philippians" de Huesos):
-      // tres renglones de trazo fino ondulado
+      // dos renglones de trazo fino ondulado (segmentos alternos)
       g.fillStyle = TAT;
-      line(88, 30, 22, 2, 0.10, -11, 0);
-      line(88, 35, 26, 2, -0.06, -13, 0);
-      line(88, 40, 18, 2, 0.08, -9, 0);
+      for (const [wx, wy, wr] of [[74, 28, 0.14], [82, 29, -0.10], [90, 30, 0.12], [98, 30, -0.08]] as const) {
+        line(wx, wy, 9, 2, wr, -4, 0);
+      }
+      for (const [wx, wy, wr] of [[76, 36, -0.12], [84, 36, 0.10], [92, 37, -0.14], [100, 37, 0.08]] as const) {
+        line(wx, wy, 9, 2, wr, -4, 0);
+      }
     }
     if (t?.belly === "tigre") {
-      // rayas de tigre cruzando el abdomen bajo
+      // rayas de tigre: muchas, finas y alternas cruzando el abdomen bajo
       g.fillStyle = TAT;
-      for (const [sx, sy, sr] of [[36, 92, 0.5], [92, 94, -0.5], [40, 102, 0.45], [88, 104, -0.45], [46, 112, 0.4], [82, 113, -0.4]] as const) {
-        line(sx, sy, 16, 3, sr, -8, 0);
+      for (const [sx, sy, sr] of [[34, 84, 0.5], [94, 86, -0.5], [38, 92, 0.45], [90, 94, -0.45],
+        [34, 100, 0.5], [94, 102, -0.5], [40, 108, 0.42], [88, 110, -0.42],
+        [44, 116, 0.38], [84, 118, -0.38]] as const) {
+        line(sx, sy, 15, 2, sr, -7, 0);
       }
     }
   } else {
-    // ── espalda ──
+    // ── espalda: trapecios, omóplatos, dorsales ──
     g.fillStyle = M;
-    g.fillRect(63, 12, 2, 88);               // columna
-    line(36, 30, 24, 3, 0.45, -12, 0);       // omóplato izquierdo
-    line(92, 30, 24, 3, -0.45, -12, 0);      // omóplato derecho
-    line(40, 52, 20, 3, 0.3, -10, 0);        // dorsales
-    line(88, 52, 20, 3, -0.3, -10, 0);
-    g.fillRect(48, 86, 32, 3);               // lumbar
+    line(44, 12, 20, 3, 0.35, -10, 0);       // trapecio izquierdo
+    line(84, 12, 20, 3, -0.35, -10, 0);      // trapecio derecho
+    g.fillRect(63, 14, 2, 82);               // columna
+    line(36, 32, 22, 3, 0.5, -11, 0);        // omóplato izquierdo (arco)
+    line(38, 40, 16, 3, 0.3, -8, 0);
+    line(92, 32, 22, 3, -0.5, -11, 0);       // omóplato derecho
+    line(90, 40, 16, 3, -0.3, -8, 0);
+    line(34, 56, 24, 3, 0.25, -12, 0);       // dorsal izquierdo (barrido)
+    line(94, 56, 24, 3, -0.25, -12, 0);      // dorsal derecho
+    g.fillRect(52, 92, 4, 4);                // hoyuelos lumbares
+    g.fillRect(72, 92, 4, 4);
     if (body.tattoos?.back === "cruz-alas") {
-      // cruz con alas (espalda del Notorio)
+      // cruz con alas desplegadas (espalda del Notorio), tres filas de plumas
       g.fillStyle = TAT;
-      g.fillRect(61, 14, 6, 34);             // cruz
-      g.fillRect(48, 22, 32, 6);
-      for (const [wx, wy, wr] of [[44, 26, 0.6], [38, 34, 0.75], [84, 26, -0.6], [90, 34, -0.75]] as const) {
-        line(wx, wy, 18, 4, wr, 0, 0);       // plumas de las alas
+      g.fillRect(59, 8, 8, 46);              // cruz
+      g.fillRect(44, 18, 40, 7);
+      // alas: tres filas de plumas a AMBOS lados (pares izq/der explícitos)
+      for (const [lx, rx, wy, wl, wr] of [[44, 84, 20, 16, 0.5],   // fila alta
+        [40, 88, 30, 20, 0.68],                                     // fila media
+        [36, 92, 41, 24, 0.85]] as const) {                         // fila baja
+        line(lx, wy, wl, 4, wr, -wl, 0);        // pluma izquierda (cae hacia fuera)
+        line(rx, wy, wl, 4, -wr, 0, 0);         // pluma derecha (simétrica)
       }
     }
   }
@@ -329,16 +357,23 @@ function sleeveTexture(base: number): THREE.CanvasTexture {
   g.fillRect(0, 0, 64, 64);
   const TAT = "rgba(22,20,26,0.85)";
   g.fillStyle = TAT;
-  g.fillRect(0, 6, 64, 4);                   // brazalete superior
-  g.fillRect(0, 22, 64, 3);                  // brazalete medio
-  // motivos dispersos (rosas/simbolos) entre los brazaletes
-  for (const [px, py] of [[6, 14], [20, 12], [34, 15], [48, 13], [12, 30], [28, 32], [44, 29], [8, 40], [26, 42], [46, 41], [18, 50], [38, 52]] as const) {
-    g.fillRect(px, py, 5, 5);
+  g.fillRect(0, 4, 64, 4);                   // brazalete superior (doble)
+  g.fillRect(0, 10, 64, 2);
+  g.fillRect(0, 58, 64, 3);                  // brazalete de muñeca
+  // rosas: pétalos alrededor de un centro de piel
+  for (const [px, py] of [[8, 18], [40, 20], [22, 38]] as const) {
+    g.fillRect(px + 2, py, 4, 8);            // pétalos verticales
+    g.fillRect(px, py + 2, 8, 4);            // pétalos horizontales
     g.fillStyle = css(base);
-    g.fillRect(px + 1, py + 1, 3, 3);        // centro de piel (flor)
+    g.fillRect(px + 3, py + 3, 2, 2);        // centro de piel
     g.fillStyle = TAT;
   }
-  g.fillRect(0, 56, 64, 4);                  // brazalete de muñeca
+  // hojas y espirales de relleno entre las rosas
+  for (const [px, py, pr] of [[24, 22, 0.6], [52, 28, -0.6], [10, 32, 0.6], [36, 30, -0.6], [50, 44, 0.6], [12, 48, -0.6], [30, 52, 0.6]] as const) {
+    g.save(); g.translate(px, py); g.rotate(pr); g.fillRect(0, 0, 7, 2); g.restore();
+  }
+  g.fillRect(0, 26, 64, 1);                  // filete fino de separación
+  g.fillRect(0, 46, 64, 1);
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter;
   t.colorSpace = THREE.SRGBColorSpace;

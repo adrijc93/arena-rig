@@ -21,7 +21,7 @@ export type MmaMoveId =
   | "low-kick" | "patada-cuerpo" | "circular" | "frontal" | "lateral" | "switch" | "rodilla" | "rodilla-voladora"
   | "clinch" | "sprawl" | "derribo"
   | "guardia-abajo" | "guardia-arriba" | "montada" | "ground-pound" | "sumision"
-  | "ko-plano" | "golpeado" | "derribado"
+  | "ko-plano" | "golpeado" | "derribado" | "zozobra" | "volcado" | "volado"
   | MmaGroundMoveId;
 
 export type MmaSeccion = "pie" | "suelo";
@@ -70,7 +70,10 @@ export const MMA_MOVES: { id: MmaMoveId; label: string; seccion: MmaSeccion; gru
   { id: "ko-plano", label: "KO (caída atrás)", seccion: "suelo", grupo: "KO" },
   // ─── REACCIONES (el rival en el duelo) ───
   { id: "golpeado", label: "¡Golpeado!", seccion: "pie", grupo: "Reacciones" },
+  { id: "zozobra", label: "Zozobra (pierde base)", seccion: "pie", grupo: "Reacciones" },
   { id: "derribado", label: "Derribado (cae atrás)", seccion: "suelo", grupo: "Reacciones" },
+  { id: "volcado", label: "¡Volcado (al mat)!", seccion: "suelo", grupo: "Reacciones" },
+  { id: "volado", label: "¡Volado (suplex)!", seccion: "suelo", grupo: "Reacciones" },
 ];
 
 /** Guardia MMA: manos altas, perfil blado, rebote ligero */
@@ -750,6 +753,68 @@ export function mmaPoseFor(id: string, t: number): Pose {
       // brazos en guardia tumbada (protegiendo la cara)
       p.uaR = [-1.0 - k * 0.5, 0, 0.3 + k * 0.4]; p.faR = -2.0 + k * 0.2;
       p.uaL = [-1.1 - k * 0.45, -0.2, -0.05 - k * 0.35]; p.faL = -2.05 + k * 0.2;
+      return p;
+    }
+
+    // zozobra: le mueven la base — tambaleo con molinete de brazos y pasos cruzados
+    case "zozobra": {
+      const u = cyc(t, 0.9);
+      const s = Math.sin(u * Math.PI * 2);
+      const s2 = Math.sin(u * Math.PI * 4);         // doble frecuencia: pasitos
+      const a = Math.abs(s);
+      p.bob = -0.05 + a * 0.035;
+      p.lean = -0.02 - a * 0.1;                     // se va atrás
+      p.tz = -a * 0.12;                             // cede terreno
+      p.hipsZ = s * 0.14;                           // balanceo lateral
+      p.tx = s * 0.09;
+      p.twist = 0.35 + s * 0.18;
+      p.headX = 0.08 + a * 0.15; p.headY = s * 0.3;
+      // molinete de brazos (busca el equilibrio)
+      p.uaR = [-1.0 - s2 * 0.5, 0, 0.3 + a * 0.5]; p.faR = -1.4 + s * 0.4;
+      p.uaL = [-1.1 + s2 * 0.5, -0.2, -0.05 - a * 0.5]; p.faL = -1.45 - s * 0.4;
+      // pasos cruzados
+      p.thL = -0.22 + s * 0.35; p.shL = 0.35 + a * 0.25;
+      p.thR = 0.18 - s * 0.35; p.shR = 0.3 + a * 0.25;
+      return p;
+    }
+
+    // volcado: lo alzan y lo estampan (double/single leg, ippon) — despega,
+    // patalea en el aire y cae de espaldas; acaba tumbado como "derribado"
+    case "volcado": {
+      const u = clamp01(t / 1.2);
+      const lift = u < 0.45 ? easeOut(u / 0.45) : 1 - easeIn(clamp01((u - 0.45) / 0.3));
+      const down = u < 0.45 ? 0 : easeIn(clamp01((u - 0.45) / 0.3));
+      p.bob = lift * 0.35 - down * 0.78;            // sube 0.35, acaba en el suelo
+      p.hipsX = -lift * 0.6 - down * 0.9;           // bascula atrás → tumbado (-1.5)
+      p.tz = -lift * 0.1 - down * 0.1;
+      p.lean = 0.1 - lift * 0.2 - down * 0.1;
+      p.headX = 0.08 - lift * 0.25 + down * 0.35;   // mira al techo → barbilla al pecho
+      // piernas: patalean arriba al despegar, se pliegan al caer
+      p.thL = -0.22 - lift * 0.9 - down * 0.55; p.shL = 0.35 + lift * 1.0 + down * 0.9;
+      p.thR = 0.18 - lift * 0.7 - down * 0.35; p.shR = 0.3 + lift * 0.8 + down * 0.85;
+      // brazos: se agitan en el aire, acaban en guardia tumbada
+      p.uaR = [-1.0 - lift * 0.7 - down * 0.3, 0, 0.3 + lift * 0.6 + down * 0.1]; p.faR = -2.0 + lift * 1.0 + down * 0.2;
+      p.uaL = [-1.1 - lift * 0.65 - down * 0.3, -0.2, -0.05 - lift * 0.6 - down * 0.1]; p.faL = -2.05 + lift * 1.0 + down * 0.2;
+      return p;
+    }
+
+    // volado (suplex): lo levantan en arco, pasa INVERTIDO por encima del
+    // atacante y se estampa de espaldas; acaba tumbado
+    case "volado": {
+      const u = clamp01(t / 1.5);
+      const lift = u < 0.35 ? easeOut(u / 0.35) : 1;             // se queda arriba hasta el slam
+      const flip = u < 0.3 ? 0 : easeIn(clamp01((u - 0.3) / 0.4));
+      const slam = u < 0.7 ? 0 : easeIn(clamp01((u - 0.7) / 0.2));
+      p.bob = lift * 0.55 - slam * 1.37;            // pico 0.55 en el aire → -0.82 en el mat
+      p.hipsX = -lift * 0.4 - flip * 2.2 + slam * 1.1; // invertido (-2.6) en el pico → tumbado (-1.5)
+      p.lean = 0.1 - slam * 0.2;
+      p.headX = 0.08 - lift * 0.3 + slam * 0.35;
+      // piernas: cuelgan → pasan por encima de la cabeza → se pliegan al impacto
+      p.thL = -0.22 - lift * 0.5 - flip * 0.7 + slam * 0.3; p.shL = 0.35 + lift * 0.5 + flip * 0.5 + slam * 0.3;
+      p.thR = 0.18 - lift * 0.45 - flip * 0.6 + slam * 0.35; p.shR = 0.3 + lift * 0.45 + flip * 0.45 + slam * 0.35;
+      // brazos: se agitan en el vuelo → protegen la caída
+      p.uaR = [-1.0 - lift * 0.6, 0, 0.3 + flip * 0.5 + slam * 0.1]; p.faR = -2.0 + lift * 0.9 - slam * 0.4;
+      p.uaL = [-1.1 - lift * 0.55, -0.2, -0.05 - flip * 0.5 - slam * 0.1]; p.faL = -2.05 + lift * 0.9 - slam * 0.4;
       return p;
     }
 

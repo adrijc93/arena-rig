@@ -184,7 +184,7 @@ export const DUO_SEQ: Record<string, DuoSeq> = {
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "derribo", from: 0.6, to: 3.0 }, { move: "guardia-mma", from: 3.0, to: 5.2 }],
         def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "sprawl", from: 0.6, to: 2.6 }, { move: "guardia-mma", from: 2.6, to: 5.2 }] },
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "derribo", from: 0.6, to: 3.0 }, { move: "guardia-arriba", from: 3.0, to: 5.2 }],
-        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "sprawl", from: 0.6, to: 1.4 }, { move: "derribado", from: 1.4, to: 3.4 }, { move: "guardia-abajo", from: 3.4, to: 5.2 }] },
+        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "zozobra", from: 0.6, to: 1.3 }, { move: "volcado", from: 1.3, to: 2.5 }, { move: "guardia-abajo", from: 2.5, to: 5.2 }] },
     ],
   },
   /* ── SINGLE LEG: igual: defensa o caída ── */
@@ -194,7 +194,7 @@ export const DUO_SEQ: Record<string, DuoSeq> = {
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "single-leg", from: 0.6, to: 2.8 }, { move: "guardia-mma", from: 2.8, to: 5.0 }],
         def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "sprawl", from: 0.6, to: 2.6 }, { move: "guardia-mma", from: 2.6, to: 5.0 }] },
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "single-leg", from: 0.6, to: 2.8 }, { move: "guardia-arriba", from: 2.8, to: 5.0 }],
-        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "sprawl", from: 0.6, to: 1.4 }, { move: "derribado", from: 1.4, to: 3.2 }, { move: "guardia-abajo", from: 3.2, to: 5.0 }] },
+        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "zozobra", from: 0.6, to: 1.5 }, { move: "volcado", from: 1.5, to: 2.7 }, { move: "guardia-abajo", from: 2.7, to: 5.0 }] },
     ],
   },
   /* ── SUPLEX: siempre acaba en el suelo ── */
@@ -202,7 +202,7 @@ export const DUO_SEQ: Record<string, DuoSeq> = {
     T: 4.6,
     outcomes: [
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "suplex", from: 0.6, to: 3.0 }, { move: "guardia-arriba", from: 3.0, to: 4.6 }],
-        def: [{ move: "guardia-mma", from: 0, to: 1.3 }, { move: "derribado", from: 1.3, to: 3.3 }, { move: "guardia-abajo", from: 3.3, to: 4.6 }] },
+        def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "volado", from: 0.7, to: 2.2 }, { move: "guardia-abajo", from: 2.2, to: 4.6 }] },
     ],
   },
   /* ── IPPON (seoi nage): proyección limpia, el atacante sigue de pie ── */
@@ -210,7 +210,7 @@ export const DUO_SEQ: Record<string, DuoSeq> = {
     T: 4.4,
     outcomes: [
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "ippon", from: 0.6, to: 2.6 }, { move: "guardia-mma", from: 2.6, to: 4.4 }],
-        def: [{ move: "guardia-mma", from: 0, to: 1.1 }, { move: "derribado", from: 1.1, to: 3.1 }, { move: "guardia-abajo", from: 3.1, to: 4.4 }] },
+        def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "zozobra", from: 0.7, to: 1.1 }, { move: "volcado", from: 1.1, to: 2.3 }, { move: "guardia-abajo", from: 2.3, to: 4.4 }] },
     ],
   },
 };

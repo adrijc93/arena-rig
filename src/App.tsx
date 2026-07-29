@@ -32,7 +32,7 @@ const AIM: Record<string, { side: "L" | "R"; lvl: "head" | "body" }[]> = {
 /* Posiciones de suelo: para colocar la escena dinámicamente durante
    las secuencias (el derribo empieza de pie y acaba en el suelo). */
 const GROUND_TOP = new Set(["guardia-arriba", "montada", "ground-pound", "side-control", "rodilla-vientre", "pase-guardia", "kimura", "americana"]);
-const GROUND_BOTTOM = new Set(["guardia-abajo", "media-guardia", "sumision", "triangulo", "shrimp", "upa", "derribado", "ko-plano"]);
+const GROUND_BOTTOM = new Set(["guardia-abajo", "media-guardia", "sumision", "triangulo", "shrimp", "upa", "derribado", "ko-plano", "volcado", "volado"]);
 
 /* ════════════════════════════════════════════════════════════════
    ARENA RIG LAB — banco de pruebas del motor de animación.
