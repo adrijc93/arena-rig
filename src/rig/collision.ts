@@ -125,8 +125,8 @@ function fk(p: Pose): Skel {
 interface BlockDef { off: Vec3; size: Vec3 }
 
 const BLOCKS: Record<string, BlockDef[]> = {
-  hips: [{ off: [0, -0.02, 0], size: [0.36, 0.16, 0.26] }],           // pelvis
-  spine: [{ off: [0, 0.22, 0], size: [0.58, 0.40, 0.32] }],           // pecho
+  hips: [{ off: [0, -0.02, 0], size: [0.34, 0.16, 0.25] }],           // pelvis
+  spine: [{ off: [0, 0.22, 0], size: [0.50, 0.40, 0.30] }],           // pecho
   head: [{ off: [0, 0.25, 0], size: [0.40, 0.40, 0.40] }],            // cabeza (contenida)
   "upperarm.l": [{ off: [0, -0.16, 0], size: [0.16, 0.30, 0.17] }],   // manga
   "upperarm.r": [{ off: [0, -0.16, 0], size: [0.16, 0.30, 0.17] }],

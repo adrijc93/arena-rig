@@ -147,13 +147,13 @@ export default function App() {
     let duoActive = false;
     let loading = false;
 
-    const buildFighter = (id: string, spec?: PuppetSpec): Fighter => {
+    const buildFighter = (id: string, spec?: PuppetSpec, hFactor = 1): Fighter => {
       const f = MODELS.find((m) => m.id === id)!;
       const model = buildVoxelPuppet(spec ?? f.spec);
       model.updateMatrixWorld(true);
       const bbox = new THREE.Box3().setFromObject(model);
       const h = Math.max(0.001, bbox.max.y - bbox.min.y);
-      const s = f.targetHeight / h;
+      const s = (f.targetHeight * hFactor) / h;
       model.scale.setScalar(s);
       const baseY = -bbox.min.y * s;
       model.position.y = baseY;
@@ -175,14 +175,15 @@ export default function App() {
       // marioneta propia: 15 bloques rígidos sobre bisagras, sin skinning.
       // La ficha solo aporta la piel (spec); rig y animaciones son comunes.
       const fp = FACE_PRESETS.find((x) => x.id === faceRef.current) ?? FACE_PRESETS[0];
-      attacker = buildFighter(id, { ...f.spec, face: fp.face, skin: fp.skin ?? f.spec?.skin });
+      attacker = buildFighter(id, { ...f.spec, face: fp.face, skin: fp.skin ?? f.spec?.skin, body: fp.body }, fp.heightFactor ?? 1);
       attacker.root.userData.modelId = id;
       attacker.root.userData.faceId = faceRef.current;
       duoActive = duoRef.current;
       if (duoActive) {
         const rs = rivalSpec(f.spec);
         rs.face = { brows: "fruncido", hair: "corto", hairColor: 0x1a1512 }; // rival: cara de duro
-        rival = buildFighter(id, rs);
+        rs.body = fp.body ? { ...fp.body, tattoos: undefined } : undefined; // mismo físico, sin tatuajes
+        rival = buildFighter(id, rs, fp.heightFactor ?? 1);
         // en duelo la cámara nace en esquina: se ven los dos perfiles
         camera.position.set(3.4, 1.9, 3.6);
         controls.target.set(0, 0.8, 0);
