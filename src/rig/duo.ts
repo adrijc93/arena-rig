@@ -297,44 +297,44 @@ export const DUO_SEQ: Record<string, DuoSeq> = {
         def: [{ move: "guardia-mma", from: 0, to: 1.45 }, { move: "golpeado", from: 1.45, to: 2.1 }, { move: "derribado", from: 2.1, to: 3.5 }, { move: "guardia-abajo", from: 3.5, to: 4.8 }] },
     ],
   },
-  /* ── DERRIBO (double leg): lo defiende de pie… o cae y le montan ── */
+  /* ── DERRIBO (double leg): click 1 cae y le montan · click 2 lo defiende de pie ── */
   derribo: {
     T: 5.2,
     outcomes: [
-      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "derribo", from: 0.6, to: 3.0 }, { move: "guardia-mma", from: 3.0, to: 5.2 }],
-        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "defensa-derribo", from: 0.6, to: 2.0 }, { move: "guardia-mma", from: 2.0, to: 5.2 }] },
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "derribo", from: 0.6, to: 3.0 }, { move: "guardia-arriba", from: 3.0, to: 5.2 }],
         def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "volcado", from: 0.6, to: 2.6 }, { move: "guardia-abajo", from: 2.6, to: 5.2 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "derribo", from: 0.6, to: 3.0 }, { move: "guardia-mma", from: 3.0, to: 5.2 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "defensa-derribo", from: 0.6, to: 2.0 }, { move: "guardia-mma", from: 2.0, to: 5.2 }] },
     ],
   },
-  /* ── SINGLE LEG: lo defiende de pie… o cae y le montan ── */
+  /* ── SINGLE LEG: click 1 cae y le montan · click 2 lo defiende de pie ── */
   "single-leg": {
     T: 5.0,
     outcomes: [
-      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "single-leg", from: 0.6, to: 2.8 }, { move: "guardia-mma", from: 2.8, to: 5.0 }],
-        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "defensa-derribo", from: 0.6, to: 2.0 }, { move: "guardia-mma", from: 2.0, to: 5.0 }] },
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "single-leg", from: 0.6, to: 2.8 }, { move: "guardia-arriba", from: 2.8, to: 5.0 }],
         def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "volcado", from: 0.6, to: 2.6 }, { move: "guardia-abajo", from: 2.6, to: 5.0 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "single-leg", from: 0.6, to: 2.8 }, { move: "guardia-mma", from: 2.8, to: 5.0 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "defensa-derribo", from: 0.6, to: 2.0 }, { move: "guardia-mma", from: 2.0, to: 5.0 }] },
     ],
   },
-  /* ── SUPLEX (DESDE LA ESPALDA): lo defiende de pie… o vuela ── */
+  /* ── SUPLEX (DESDE LA ESPALDA): click 1 vuela · click 2 lo defiende de pie ── */
   suplex: {
     T: 4.6,
     outcomes: [
-      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "suplex", from: 0.6, to: 3.0 }, { move: "guardia-mma", from: 3.0, to: 4.6 }],
-        def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "defensa-derribo", from: 0.7, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.6 }] },
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "suplex", from: 0.6, to: 3.0 }, { move: "guardia-arriba", from: 3.0, to: 4.6 }],
         def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "volado", from: 0.7, to: 2.5 }, { move: "guardia-abajo", from: 2.5, to: 4.6 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "suplex", from: 0.6, to: 3.0 }, { move: "guardia-mma", from: 3.0, to: 4.6 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "defensa-derribo", from: 0.7, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.6 }] },
     ],
   },
-  /* ── IPPON (seoi nage): lo defiende de pie… o proyección limpia ── */
+  /* ── IPPON (seoi nage): click 1 proyección limpia · click 2 lo defiende de pie ── */
   ippon: {
     T: 4.4,
     outcomes: [
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "ippon", from: 0.6, to: 2.6 }, { move: "guardia-mma", from: 2.6, to: 4.4 }],
-        def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "defensa-derribo", from: 0.7, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.4 }] },
-      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "ippon", from: 0.6, to: 2.6 }, { move: "guardia-mma", from: 2.6, to: 4.4 }],
         def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "volcado", from: 0.7, to: 2.7 }, { move: "guardia-abajo", from: 2.7, to: 4.4 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "ippon", from: 0.6, to: 2.6 }, { move: "guardia-mma", from: 2.6, to: 4.4 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "defensa-derribo", from: 0.7, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.4 }] },
     ],
   },
 };
