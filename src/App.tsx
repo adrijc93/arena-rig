@@ -68,6 +68,33 @@ function rivalSpec(spec?: PuppetSpec): PuppetSpec {
   return r;
 }
 
+/* ── UNA EJECUCIÓN POR CLICK ─────────────────────────────────────
+   Los movimientos con animación ya NO van en bucle: se reproducen UNA
+   vez al hacer click y se congelan en su fotograma final (los golpes
+   acaban de vuelta en guardia; los KO se quedan en la lona). Las
+   posiciones (guardias, montada, espalda, clinch…) no tienen "fin":
+   siguen con su micro-movimiento de postura. Valor = instante de
+   congelado (segundos desde el click). */
+const ONE_SHOT: Record<string, number> = {
+  // comunes
+  caminar: 0.67, correr: 0.49, golpe: 0.9, ko: 2.5, provocar: 1.6, celebracion: 0.79,
+  // defensas
+  esquiva: 1.4, parada: 1.2, retirada: 1.2, "bloqueo-alto": 1.4, "bloqueo-cuerpo": 1.4, chequeo: 1.4,
+  // golpes
+  jab: 0.9, cross: 1.15, hook: 1.2, uppercut: 1.2, overhand: 1.3, "gancho-cuerpo": 1.3,
+  superman: 1.5, backfist: 1.4, codo: 1.0, "codo-giro": 1.3,
+  // patadas y rodillas
+  "low-kick": 1.6, "patada-cuerpo": 1.6, circular: 1.6, frontal: 1.4, lateral: 1.5,
+  switch: 1.4, rodilla: 1.2, "rodilla-voladora": 1.6,
+  // lucha (en solitario; en duelo manda la duración del guion DUO_SEQ)
+  sprawl: 2.0, derribo: 2.4, "single-leg": 2.2, ippon: 2.0, suplex: 2.4,
+  // suelo
+  "ground-pound": 1.26, "pase-guardia": 2.6, kimura: 1.8, americana: 1.8, shrimp: 1.6, upa: 2.0,
+  // reacciones
+  golpeado: 1.2, derribado: 1.5, "ko-plano": 2.5, zozobra: 0.9, volcado: 2.0, volado: 1.8,
+  "defensa-derribo": 1.4,
+};
+
 export default function App() {
   const ref = useRef<HTMLDivElement>(null);
   const q = new URLSearchParams(window.location.search);
@@ -91,6 +118,17 @@ export default function App() {
   const ryOverride = useRef<number | null>(q.get("ry") !== null ? parseFloat(q.get("ry")!) : null);
   // &collide=0 desactiva el detector de colisiones (comparar antes/después)
   const collideOn = useRef(q.get("collide") !== "0");
+  // reproducción por click: qué movimiento se lanzó, cuándo, y cuántas
+  // veces seguidas (los guiones alternan resultado con cada click)
+  const playRef = useRef<{ move: string; t0: number; clicks: number } | null>(null);
+  const playMove = (id: string) => {
+    setMove(id);
+    playRef.current = {
+      move: id,
+      t0: performance.now(),
+      clicks: playRef.current?.move === id ? playRef.current.clicks + 1 : 0,
+    };
+  };
 
   useEffect(() => {
     const el = ref.current!;
@@ -248,17 +286,32 @@ export default function App() {
       try {
         const dt = clock.getDelta();
         void dt;
-        const t = tFreeze.current ?? (performance.now() - t0) / 1000;
+        const mv0 = moveRef.current;
+        const seq0 = setRef.current === "comun" ? undefined : DUO_SEQ[mv0];
+        const play = playRef.current;
+        // reloj de UNA ejecución: arranca en el click y se congela al
+        // terminar el movimiento (o el guion completo, en duelo)
+        let t = tFreeze.current ?? (performance.now() - t0) / 1000;
+        if (tFreeze.current === null) {
+          const dur = seq0 && rival ? seq0.T : ONE_SHOT[mv0];
+          if (dur !== undefined) {
+            const el = play && play.move === mv0 ? (performance.now() - play.t0) / 1000 : 0;
+            t = Math.min(el, dur);
+          }
+        }
         if (attacker && attacker.loaded.rig) {
           // ─── secuencia con guion (golpes y derribos con rival) ───
-          // varios RESULTADOS se alternan ciclo a ciclo: defiende / le
+          // varios RESULTADOS se alternan CLICK A CLICK: defiende / le
           // entra / cae derribado. Los beats mandan sobre la tabla DUO.
-          const seq = setRef.current === "comun" ? undefined : DUO_SEQ[moveRef.current];
+          const seq = seq0;
           let beatA: { move: string; tm: number } | null = null;
           let beatB: { move: string; tm: number } | null = null;
           if (seq && rival) {
             const tt = t % seq.T;
-            const oc = seq.outcomes[Math.floor(t / seq.T) % seq.outcomes.length];
+            const n = tFreeze.current !== null
+              ? Math.floor(t / seq.T)
+              : (play && play.move === mv0 ? play.clicks : 0);
+            const oc = seq.outcomes[n % seq.outcomes.length];
             beatA = duoBeatAt(oc.atk, tt);
             beatB = duoBeatAt(oc.def, tt);
           }
@@ -417,7 +470,7 @@ export default function App() {
         <div className="space-y-1.5">
           <div className="flex gap-1">
             {([["comun", "Común"], ["pie", "MMA · En pie 🥊"], ["suelo", "MMA · Suelo 🤼"]] as const).map(([s, l]) => (
-              <button key={s} onClick={() => { setMoveSet(s); setMove(s === "comun" ? "guardia" : s === "pie" ? "guardia-mma" : "guardia-abajo"); }}
+              <button key={s} onClick={() => { setMoveSet(s); playMove(s === "comun" ? "guardia" : s === "pie" ? "guardia-mma" : "guardia-abajo"); }}
                 className={`flex-1 py-1 rounded text-[11px] font-bold ${moveSet === s ? "bg-sky-500 text-black" : "bg-stone-800"}`}>
                 {l}
               </button>
@@ -426,7 +479,7 @@ export default function App() {
           {moveSet === "comun" ? (
             <div className="grid grid-cols-3 gap-1">
               {MOVES.map((m) => (
-                <button key={m.id} onClick={() => setMove(m.id)}
+                <button key={m.id} onClick={() => playMove(m.id)}
                   className={`py-1.5 rounded text-[11px] font-bold ${move === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
                   {m.label}
                 </button>
@@ -439,7 +492,7 @@ export default function App() {
                   <p className="text-[9px] uppercase text-stone-500 font-bold pb-0.5">{g}</p>
                   <div className="grid grid-cols-3 gap-1">
                     {MMA_MOVES.filter((m) => m.seccion === moveSet && m.grupo === g).map((m) => (
-                      <button key={m.id} onClick={() => setMove(m.id)}
+                      <button key={m.id} onClick={() => playMove(m.id)}
                         className={`py-1.5 rounded text-[10px] font-bold ${move === m.id ? "bg-amber-500 text-black" : "bg-stone-800"}`}>
                         {m.label}
                       </button>
