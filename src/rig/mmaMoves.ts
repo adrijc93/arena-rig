@@ -21,7 +21,7 @@ export type MmaMoveId =
   | "low-kick" | "patada-cuerpo" | "circular" | "frontal" | "lateral" | "switch" | "rodilla" | "rodilla-voladora"
   | "clinch" | "sprawl" | "derribo"
   | "guardia-abajo" | "guardia-arriba" | "montada" | "ground-pound" | "sumision"
-  | "ko-plano"
+  | "ko-plano" | "golpeado" | "derribado"
   | MmaGroundMoveId;
 
 export type MmaSeccion = "pie" | "suelo";
@@ -68,6 +68,9 @@ export const MMA_MOVES: { id: MmaMoveId; label: string; seccion: MmaSeccion; gru
   ...MMA_GROUND_SUMISIONES,
   ...MMA_GROUND_ESCAPES,
   { id: "ko-plano", label: "KO (caída atrás)", seccion: "suelo", grupo: "KO" },
+  // ─── REACCIONES (el rival en el duelo) ───
+  { id: "golpeado", label: "¡Golpeado!", seccion: "pie", grupo: "Reacciones" },
+  { id: "derribado", label: "Derribado (cae atrás)", seccion: "suelo", grupo: "Reacciones" },
 ];
 
 /** Guardia MMA: manos altas, perfil blado, rebote ligero */
@@ -450,7 +453,7 @@ export function mmaPoseFor(id: string, t: number): Pose {
 
     case "patada-cuerpo": {
       // roundhouse al CUERPO (hígado/costillas): misma cadena cinética que la
-      // low kick corregida (cadera lidera, hombres acompañan con retraso) pero
+      // low kick corregida (cadera lidera, hombros acompañan con retraso) pero
       // la espinilla llega ALTA, envolviendo el costado.
       const u = cyc(t, 1.6);
       const step = u < 0.3 ? easeOut(u / 0.3) : 1;
@@ -711,6 +714,42 @@ export function mmaPoseFor(id: string, t: number): Pose {
       p.thL = -0.22 + 0.35 * k; p.shL = 0.35 + 0.2 * k;
       p.thR = 0.18 + 0.2 * k; p.shR = 0.3 + 0.15 * k;
       p.headX = 0.08 - 0.4 * k;
+      return p;
+    }
+
+    /* ── REACCIONES (las ejecuta el rival en el modo duelo) ── */
+
+    // golpeado: le entra un golpe limpio — cabezazo atrás, tronco rota, paso de tambaleo, recupera
+    case "golpeado": {
+      const u = (t % 1.2) / 1.2;
+      const k = easeOut(clamp01(u / 0.12)) * (1 - easeIn(clamp01((u - 0.3) / 0.28)));
+      p.headX = 0.08 - k * 0.5;                       // la cabeza salta hacia atrás
+      p.lean = 0.1 - k * 0.25;                        // tronco se va atrás
+      p.tz = -k * 0.25;                               // cede terreno
+      p.bob = -k * 0.06;
+      p.twist = 0.35 + k * 0.15;                      // se abre al recibir
+      // la guardia baja y los brazos se abren (descolocado)
+      p.uaR = [-1.0 + k * 0.35, 0, 0.3 + k * 0.35]; p.faR = -2.0 + k * 0.9;
+      p.uaL = [-1.1 + k * 0.3, -0.2, -0.05 - k * 0.3]; p.faL = -2.05 + k * 0.95;
+      p.thL = -0.22 + k * 0.1; p.shL = 0.35 - k * 0.1;
+      p.thR = 0.18 - k * 0.05; p.shR = 0.3 - k * 0.05;
+      return p;
+    }
+
+    // derribado: le derriban — cae de espaldas y se queda en el suelo
+    case "derribado": {
+      const u = (t % 2.0) / 2.0;
+      const k = easeIn(clamp01(u / 0.3));             // cae en los primeros 0.6 s y aguanta
+      p.hipsX = -k * 1.5;                             // tumbado de espaldas
+      p.bob = -k * 0.78;                              // cadera al suelo
+      p.tz = -k * 0.15;                               // empujado ligeramente atrás
+      p.lean = 0.1 - k * 0.1;
+      p.headX = 0.08 + k * 0.35;                      // barbilla al pecho (protege)
+      p.thL = -0.22 - k * 0.85; p.shL = 0.35 + k * 1.1;   // piernas plegadas
+      p.thR = 0.18 - k * 0.5; p.shR = 0.3 + k * 0.9;
+      // brazos en guardia tumbada (protegiendo la cara)
+      p.uaR = [-1.0 - k * 0.5, 0, 0.3 + k * 0.4]; p.faR = -2.0 + k * 0.2;
+      p.uaL = [-1.1 - k * 0.45, -0.2, -0.05 - k * 0.35]; p.faL = -2.05 + k * 0.2;
       return p;
     }
 
