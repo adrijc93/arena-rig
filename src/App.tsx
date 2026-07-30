@@ -432,10 +432,10 @@ export default function App() {
           const homeA = fA === attacker ? 0.55 : -0.55, dirA = fA === attacker ? 1 : -1;
           const homeB = fB === attacker ? 0.55 : -0.55, dirB = fB === attacker ? 1 : -1;
           let zA = homeA, zB = homeB;
-          if (aLy && !bLy) zB = homeA + dirA * 0.45;           // B sobre A: hacia su cabeza
-          else if (bLy && !aLy) zA = homeB + dirB * 0.45;      // A sobre B
+          if (aLy && !bLy) zB = homeA + dirA * 0.25;           // B sobre A: hacia su cabeza
+          else if (bLy && !aLy) zA = homeB + dirB * 0.25;      // A sobre B
           else if (aLy && bLy && mvB === "tap-out" && REPLAY_SUB_BOT.has(mvA))
-            zB = homeA + dirA * 0.45;                          // el tap se desploma encima
+            zB = homeA + dirA * 0.25;                          // el tap se desploma encima
           vPosA.set(0, fA.baseY, zA); fA.root.position.lerp(vPosA, 0.22);
           vPosB.set(0, fB.baseY, zB); fB.root.position.lerp(vPosB, 0.22);
           fA.root.rotation.y = fA === attacker ? Math.PI : 0;
@@ -526,9 +526,9 @@ export default function App() {
               // El de arriba se coloca hacia la CABEZA del de abajo (-Z),
               // no a la altura de los pies.
               const aTop = dynTop !== false;
-              attacker.root.position.set(0, attacker.baseY, aTop ? -0.75 : -0.3);
+              attacker.root.position.set(0, attacker.baseY, aTop ? -0.6 : -0.3);
               attacker.root.rotation.y = aTop ? Math.PI : 0;
-              rival.root.position.set(0, rival.baseY, aTop ? -0.3 : -0.75);
+              rival.root.position.set(0, rival.baseY, aTop ? -0.3 : -0.6);
               rival.root.rotation.y = aTop ? 0 : Math.PI;
             } else { // behind: los dos miran a +Z, atacante detrás
               attacker.root.position.set(0, attacker.baseY, -0.42);
