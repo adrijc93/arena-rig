@@ -11,7 +11,7 @@ import { MODELS } from "./rig/manifest";
 import { applyFaceDamage, buildVoxelPuppet, FACE_PRESETS } from "./rig/voxelPuppet";
 import type { FaceSpec, PuppetSpec } from "./rig/voxelPuppet";
 import { DUO, DUO_DEFAULT, DUO_SEQ, duoBeatAt } from "./rig/duo";
-import { DEMO_FIGHT } from "./data/demoFight";
+import { DEMO_FIGHT, DEMO_FIGHT_SUB } from "./data/demoFight";
 import { resolveReplay } from "./rig/replay";
 import type { ReplayStep } from "./rig/replay";
 
@@ -35,7 +35,7 @@ const AIM: Record<string, { side: "L" | "R"; lvl: "head" | "body" }[]> = {
 /* Posiciones de suelo: para colocar la escena dinámicamente durante
    las secuencias (el derribo empieza de pie y acaba en el suelo). */
 const GROUND_TOP = new Set(["guardia-arriba", "montada", "ground-pound", "side-control", "rodilla-vientre", "pase-guardia", "kimura", "americana"]);
-const GROUND_BOTTOM = new Set(["guardia-abajo", "media-guardia", "sumision", "triangulo", "shrimp", "upa", "derribado", "ko-plano"]);
+const GROUND_BOTTOM = new Set(["guardia-abajo", "media-guardia", "sumision", "triangulo", "armbar", "heel-hook", "caught", "tap-out", "shrimp", "upa", "derribado", "ko-plano"]);
 
 /* ════════════════════════════════════════════════════════════════
    ARENA RIG LAB — banco de pruebas del motor de animación.
@@ -95,9 +95,10 @@ const ONE_SHOT: Record<string, number> = {
   sprawl: 2.0, derribo: 2.4, "single-leg": 2.2, ippon: 2.0, suplex: 2.4,
   // suelo
   "ground-pound": 1.26, "pase-guardia": 2.6, kimura: 1.8, americana: 1.8, shrimp: 1.6, upa: 2.0,
+  "tap-out": 2.2,
   // reacciones
   golpeado: 1.2, derribado: 1.5, "ko-plano": 2.5, zozobra: 0.9, volcado: 2.0, volado: 1.8,
-  "defensa-derribo": 1.4,
+  "defensa-derribo": 1.4, "flash-kd": 2.4,
 };
 
 export default function App() {
@@ -125,12 +126,19 @@ export default function App() {
     { idx: 0, t0: performance.now(), playing: true, steps: [] });
 
   const startReplay = (from = 0) => {
-    const steps = resolveReplay(DEMO_FIGHT);
+    // &fight=sub → el combate con final por sumisión (por defecto el de KO)
+    const fight = q.get("fight") === "sub" ? DEMO_FIGHT_SUB : DEMO_FIGHT;
+    const steps = resolveReplay(fight);
     const idx = Math.max(0, Math.min(steps.length - 1, from));
-    repRef.current = { idx, t0: performance.now(), playing: true, frozen: 0, steps };
+    // &rept=2.2 congela el evento 2.2 s adentro (capturas de verificación)
+    const at = parseFloat(q.get("rept") ?? "0") || 0;
+    repRef.current = at > 0
+      ? { idx, t0: performance.now(), playing: false, frozen: at, steps }
+      : { idx, t0: performance.now(), playing: true, frozen: 0, steps };
+    if (at > 0) setRepPlaying(false);
     setRepIdx(idx);
     setRepPlaying(true);
-    setStatus(`REPLAY MMAM · ${steps.length} eventos`);
+    setStatus(`REPLAY MMAM · ${steps.length} eventos${at > 0 ? ` · ⏸ t=${at}s` : ""}`);
   };
   const toggleReplay = () => {
     const on = !replayOn;
@@ -380,12 +388,17 @@ export default function App() {
           applyDmg(attacker, step.dmg[0], step.bleed[0]);
           applyDmg(rival, step.dmg[1], step.bleed[1]);
 
-          // guion (DUO_SEQ) con el resultado que dicta MMAM, o posición continua
+          // guion: coreografía ad-hoc (contragolpe/flash KD) > DUO_SEQ
+          // con el resultado que dicta MMAM > posición continua
           const seqR = DUO_SEQ[step.move];
           const cfgR = DUO[step.move] ?? DUO_DEFAULT;
           let beatA: { move: string; tm: number } | null = null;
           let beatB: { move: string; tm: number } | null = null;
-          if (seqR) {
+          if (step.seqAtk && step.seqDef) {
+            const tt = Math.min(tR, step.dur - 1e-4);
+            beatA = duoBeatAt(step.seqAtk, tt);
+            beatB = duoBeatAt(step.seqDef, tt);
+          } else if (seqR) {
             const tt = Math.min(tR, seqR.T - 1e-4);
             const oc = seqR.outcomes[step.outcome % seqR.outcomes.length];
             beatA = duoBeatAt(oc.atk, tt);
