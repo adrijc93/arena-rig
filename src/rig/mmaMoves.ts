@@ -2,6 +2,7 @@ import { clamp01, clonePose, easeIn, easeOut } from "./poseDriver";
 import type { Pose } from "./poseDriver";
 import {
   MMA_GROUND_DERRIBOS, MMA_GROUND_POSICIONES, MMA_GROUND_SUMISIONES, MMA_GROUND_ESCAPES,
+  MMA_GROUND_REACCIONES,
   mmaGroundPoseFor,
 } from "./mmaGround";
 import type { MmaGroundMoveId } from "./mmaGround";
@@ -21,7 +22,7 @@ export type MmaMoveId =
   | "low-kick" | "patada-cuerpo" | "circular" | "frontal" | "lateral" | "switch" | "rodilla" | "rodilla-voladora"
   | "clinch" | "sprawl" | "derribo"
   | "guardia-abajo" | "guardia-arriba" | "montada" | "ground-pound" | "sumision"
-  | "ko-plano" | "golpeado" | "derribado" | "zozobra" | "volcado" | "volado" | "defensa-derribo"
+  | "ko-plano" | "golpeado" | "derribado" | "zozobra" | "volcado" | "volado" | "defensa-derribo" | "flash-kd"
   | MmaGroundMoveId;
 
 export type MmaSeccion = "pie" | "suelo";
@@ -66,6 +67,7 @@ export const MMA_MOVES: { id: MmaMoveId; label: string; seccion: MmaSeccion; gru
   { id: "ground-pound", label: "Ground & pound", seccion: "suelo", grupo: "Ataque" },
   { id: "sumision", label: "Sumisión (armbar)", seccion: "suelo", grupo: "Sumisiones" },
   ...MMA_GROUND_SUMISIONES,
+  ...MMA_GROUND_REACCIONES,
   ...MMA_GROUND_ESCAPES,
   { id: "ko-plano", label: "KO (caída atrás)", seccion: "suelo", grupo: "KO" },
   // ─── REACCIONES (el rival en el duelo) ───
@@ -75,6 +77,7 @@ export const MMA_MOVES: { id: MmaMoveId; label: string; seccion: MmaSeccion; gru
   { id: "volcado", label: "¡Volcado (al mat)!", seccion: "suelo", grupo: "Reacciones" },
   { id: "volado", label: "¡Volado (suplex)!", seccion: "suelo", grupo: "Reacciones" },
   { id: "defensa-derribo", label: "Defensa de derribo", seccion: "pie", grupo: "Reacciones" },
+  { id: "flash-kd", label: "Flash KD (cae a una rodilla)", seccion: "pie", grupo: "Reacciones" },
 ];
 
 /** Guardia MMA: manos altas, perfil blado, rebote ligero */
@@ -176,7 +179,7 @@ export function mmaPoseFor(id: string, t: number): Pose {
       // costillas y el antebrazo cubre el costado; recibe girando hacia la patada
       const u = cyc(t, 1.4);
       const k = u < 0.25 ? easeOut(u / 0.25) : 1 - easeIn((u - 0.25) / 0.75);
-      const hit = u > 0.3 && u < 0.45 ? Math.sin((u - 0.3) / 0.15 * Math.PI) : 0;
+      const hit = u > 0.3 && u < 0.45 ? Math.sin((u - 0.3) / 0.14 * Math.PI) : 0;
       p.uaR = [-0.45 - k * 0.15, 0, 0.35];          // brazo bajo, codo pegado al cuerpo
       p.faR = -1.1;                                 // antebrazo cubre el costado
       p.twist = 0.35 + k * 0.15;                    // se gira un pelín hacia la patada
@@ -776,6 +779,21 @@ export function mmaPoseFor(id: string, t: number): Pose {
       // pasos cruzados
       p.thL = -0.22 + s * 0.35; p.shL = 0.35 + a * 0.25;
       p.thR = 0.18 - s * 0.35; p.shR = 0.3 + a * 0.25;
+      return p;
+    }
+
+    // flash knockdown: el golpe le APAGA las piernas un instante — cae a
+    // una rodilla con la mano al suelo y RESUCITA de inmediato (2.4 s)
+    case "flash-kd": {
+      const u = clamp01(t / 2.4);
+      const drop = u < 0.2 ? easeIn(u / 0.2) : u < 0.55 ? 1 : 1 - easeOut((u - 0.55) / 0.45);
+      p.bob = -drop * 0.42;                               // rodilla y mano al suelo
+      p.hipsX = -drop * 0.35; p.lean = 0.1 + drop * 0.3;
+      p.headX = 0.08 + drop * 0.3;                        // cabeza gacha
+      p.thL = -0.22 - drop * 0.9; p.shL = 0.35 + drop * 1.5;  // rodilla al suelo
+      p.thR = 0.18 - drop * 0.4; p.shR = 0.3 + drop * 0.9;    // la otra posteada
+      p.uaR = [-0.6 - drop * 0.35, 0, 0.4]; p.faR = -0.5;     // mano al suelo
+      p.uaL = [-1.1, -0.2, -0.1]; p.faL = -2.0;               // guardia alta
       return p;
     }
 
