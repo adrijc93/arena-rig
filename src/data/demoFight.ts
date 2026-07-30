@@ -3,7 +3,7 @@
    sin necesidad del juego completo. Cuando MMAM se conecte, su log
    se enchufa aquí tal cual. */
 
-import type { FightEvent } from "../rig/replay";
+import type { FightEvent, MmamLogEntry } from "../rig/replay";
 
 export const DEMO_FIGHT: FightEvent[] = [
   /* ─── ASALTO 1: estudio, distancia y primer aviso ─── */
@@ -80,4 +80,98 @@ export const DEMO_FIGHT_SUB: FightEvent[] = [
     message: "El campeón pasa la guardia… ¡y se pega a la espalda con los ganchos!" },
   { round: 2, attacker: "opponent", action: "sub_rnc", finish: "submission",
     message: "¡MATA LEÓN! ¡El brazo bajo la barbilla! ¡TAP, TAP, TAP! ¡El campeón retiene por SUMISIÓN! 👑" },
+];
+
+/* ─── DEMO CON EL combatLog REAL de mmam ────────────────────────
+   Combate con la forma EXACTA de CombatLogEntry (action{id,type,
+   baseDamage} + result{hit:boolean, damage…}). Pasa por el
+   adaptador mmamLogToFight (replay.ts). ?replay=1&fight=real */
+
+export const DEMO_MMAM_REAL: MmamLogEntry[] = [
+  /* ─── ASALTO 1: estudio, defensas y un contragolpe ─── */
+  { round: 1, attacker: "player",
+    action: { id: "jab", type: "jab", baseDamage: 6 },
+    result: { hit: false, damage: 0, knockdown: false, flashKnockdown: false, causedBleeding: false },
+    message: "El retador tantea con el jab. El campeón lo lee y lo esquiva." },
+  { round: 1, attacker: "opponent",
+    action: { id: "jab", type: "jab", baseDamage: 6 },
+    result: { hit: true, damage: 1, knockdown: false, flashKnockdown: false, causedBleeding: false },
+    message: "El jab del campeón choca con el guante del retador. Bloqueado." },
+  { round: 1, attacker: "player",
+    action: { id: "leg_kick", type: "leg_kick", baseDamage: 8 },
+    result: { hit: true, damage: 5, knockdown: false, flashKnockdown: false, causedBleeding: false },
+    message: "¡Dura low kick del retador a la pierna adelantada!" },
+  { round: 1, attacker: "opponent",
+    action: { id: "cross", type: "cross", baseDamage: 10 },
+    result: { hit: true, damage: 3, knockdown: false, flashKnockdown: false, causedBleeding: false },
+    message: "El directo del campeón roza la guardia del retador." },
+  { round: 1, attacker: "player",
+    action: { id: "takedown_double", type: "takedown_double", baseDamage: 0 },
+    result: { hit: false, damage: 0, knockdown: false, flashKnockdown: false, causedBleeding: false },
+    message: "Entra al doble… ¡pero el campeón esparrama y defiende el derribo!" },
+  { round: 1, attacker: "opponent",
+    action: { id: "hook", type: "hook", baseDamage: 12 },
+    result: { hit: true, damage: 11, knockdown: false, flashKnockdown: false, causedBleeding: false },
+    message: "El retador sale con el jab… ¡y se come el gancho de CONTRAGOLPE del campeón!" },
+  { round: 1, attacker: "player",
+    action: { id: "clinch_entry", type: "clinch_entry", baseDamage: 0 },
+    result: { hit: true, damage: 0, knockdown: false, flashKnockdown: false, causedBleeding: false,
+      positionChanged: true, newPosition: "clinch" },
+    message: "El retador pega el cuerpo y cierra el clinch." },
+  { round: 1, attacker: "player",
+    action: { id: "clinch_knee", type: "clinch_knee", baseDamage: 9 },
+    result: { hit: true, damage: 6, knockdown: false, flashKnockdown: false, causedBleeding: false },
+    message: "¡Rodillazo al hígado desde el clinch! Duele." },
+  { round: 1, attacker: "opponent",
+    action: { id: "clinch_break", type: "clinch_break", baseDamage: 0 },
+    result: { hit: true, damage: 0, knockdown: false, flashKnockdown: false, causedBleeding: false,
+      positionChanged: true, newPosition: "standing" },
+    message: "El campeón se zafa y rompe el clinch." },
+  { round: 1, attacker: "player",
+    action: { id: "rest", type: "rest", baseDamage: 0 },
+    result: { hit: true, damage: 0, knockdown: false, flashKnockdown: false, causedBleeding: false },
+    message: "🔔 Suena la campana. Final del primer asalto." },
+
+  /* ─── ASALTO 2: la lona, el susto y el desenlace ─── */
+  { round: 2, attacker: "opponent",
+    action: { id: "takedown_single", type: "takedown_single", baseDamage: 0 },
+    result: { hit: true, damage: 0, knockdown: false, flashKnockdown: false, causedBleeding: false,
+      positionChanged: true, newPosition: "guard" },
+    message: "¡Single leg del campeón y a la lona! El retador cae." },
+  { round: 2, attacker: "opponent",
+    action: { id: "gnp_punch", type: "gnp_punch", baseDamage: 7 },
+    result: { hit: true, damage: 4, knockdown: false, flashKnockdown: false, causedBleeding: true },
+    message: "Ground and pound del campeón desde la guardia. ¡Sangra la ceja del retador!" },
+  { round: 2, attacker: "player",
+    action: { id: "escape_improve", type: "escape_improve", baseDamage: 0 },
+    result: { hit: true, damage: 0, knockdown: false, flashKnockdown: false, causedBleeding: false,
+      positionChanged: true, newPosition: "half_guard" },
+    message: "El retador hace shrimp y recupera media guardia." },
+  { round: 2, attacker: "opponent",
+    action: { id: "kimura", type: "sub_kimura", baseDamage: 0 },
+    result: { hit: false, damage: 0, knockdown: false, flashKnockdown: false, causedBleeding: false,
+      submissionLocked: false },
+    message: "¡Intenta la kimura el campeón! El retador pelea las manos y sobrevive a la llave." },
+  { round: 2, attacker: "player",
+    action: { id: "escape_standup", type: "escape_standup", baseDamage: 0 },
+    result: { hit: true, damage: 0, knockdown: false, flashKnockdown: false, causedBleeding: false,
+      positionChanged: true, newPosition: "standing" },
+    message: "¡Explota hacia arriba y se pone de pie! La grada ruge." },
+  { round: 2, attacker: "opponent",
+    action: { id: "head_kick", type: "head_kick", baseDamage: 14 },
+    result: { hit: true, damage: 3, knockdown: false, flashKnockdown: true, causedBleeding: false },
+    message: "¡LA PATADA ROZA LA SIEN! ¡El retador cae a una rodilla… y se levanta como puede! ¡FLASH KNOCKDOWN!" },
+  { round: 2, attacker: "player",
+    action: { id: "overhand", type: "overhand", baseDamage: 14 },
+    result: { hit: true, damage: 8, knockdown: true, flashKnockdown: false, causedBleeding: false },
+    message: "¡¡OVERHAND DEL RETADOR!! ¡KNOCKDOWN! ¡El campeón cae seco!" },
+  { round: 2, attacker: "player",
+    action: { id: "gnp_elbow", type: "gnp_elbow", baseDamage: 8 },
+    result: { hit: true, damage: 5, knockdown: false, flashKnockdown: false, causedBleeding: true },
+    message: "¡Codo que abre un corte en la frente del campeón! El árbitro se acerca…" },
+  { round: 2, attacker: "player",
+    action: { id: "gnp_punch", type: "gnp_punch", baseDamage: 7 },
+    result: { hit: true, damage: 4, knockdown: false, flashKnockdown: false, causedBleeding: false,
+      finishType: "tko_gnp" },
+    message: "¡¡EL ÁRBITRO LO PARA!! ¡TKO DEL RETADOR! ¡TENEMOS NUEVO CAMPEÓN! 🏆" },
 ];
