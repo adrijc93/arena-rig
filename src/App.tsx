@@ -8,8 +8,8 @@ import { MOVES, poseFor } from "./rig/moves";
 import type { MoveId } from "./rig/moves";
 import { MMA_MOVES, mmaPoseFor } from "./rig/mmaMoves";
 import { MODELS } from "./rig/manifest";
-import { buildVoxelPuppet, FACE_PRESETS } from "./rig/voxelPuppet";
-import type { PuppetSpec } from "./rig/voxelPuppet";
+import { applyFaceDamage, buildVoxelPuppet, FACE_PRESETS } from "./rig/voxelPuppet";
+import type { FaceSpec, PuppetSpec } from "./rig/voxelPuppet";
 import { DUO, DUO_DEFAULT, DUO_SEQ, duoBeatAt } from "./rig/duo";
 import { DEMO_FIGHT } from "./data/demoFight";
 import { resolveReplay } from "./rig/replay";
@@ -57,6 +57,8 @@ interface Fighter {
   prev: Pose;
   baseY: number;      // altura de apoyo (pies en el suelo)
   rotY: number;       // orientación base en solitario
+  skin?: number;      // piel de la ficha (para regenerar la cara con daño)
+  face?: FaceSpec;    // facciones de la ficha
 }
 
 /** Piel del RIVAL: misma base pero distinguida (MMA: shorts azules y
@@ -122,11 +124,13 @@ export default function App() {
   const repRef = useRef<{ idx: number; t0: number; playing: boolean; frozen?: number; steps: ReplayStep[] }>(
     { idx: 0, t0: performance.now(), playing: true, steps: [] });
 
-  const startReplay = () => {
-    repRef.current = { idx: 0, t0: performance.now(), playing: true, frozen: 0, steps: resolveReplay(DEMO_FIGHT) };
-    setRepIdx(0);
+  const startReplay = (from = 0) => {
+    const steps = resolveReplay(DEMO_FIGHT);
+    const idx = Math.max(0, Math.min(steps.length - 1, from));
+    repRef.current = { idx, t0: performance.now(), playing: true, frozen: 0, steps };
+    setRepIdx(idx);
     setRepPlaying(true);
-    setStatus(`REPLAY MMAM · ${repRef.current.steps.length} eventos`);
+    setStatus(`REPLAY MMAM · ${steps.length} eventos`);
   };
   const toggleReplay = () => {
     const on = !replayOn;
@@ -166,9 +170,12 @@ export default function App() {
     };
   };
 
-  // arranque directo por URL (?replay=1): prepara escena y log
+  // arranque directo por URL (?replay=1 · &rep=N empieza en el evento N)
   useEffect(() => {
-    if (replayOn) { setMoveSet("pie"); setDuo(true); startReplay(); }
+    if (replayOn) {
+      setMoveSet("pie"); setDuo(true);
+      startReplay(parseInt(q.get("rep") ?? "0", 10) || 0);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -229,7 +236,8 @@ export default function App() {
 
     const buildFighter = (id: string, spec?: PuppetSpec, hFactor = 1): Fighter => {
       const f = MODELS.find((m) => m.id === id)!;
-      const model = buildVoxelPuppet(spec ?? f.spec);
+      const sp = spec ?? f.spec;
+      const model = buildVoxelPuppet(sp);
       model.updateMatrixWorld(true);
       const bbox = new THREE.Box3().setFromObject(model);
       const h = Math.max(0.001, bbox.max.y - bbox.min.y);
@@ -243,7 +251,7 @@ export default function App() {
       const rig = findRig(model);
       const snapshot = new Map<THREE.Object3D, { p: THREE.Vector3; q: THREE.Quaternion; s: THREE.Vector3 }>();
       model.traverse((o) => snapshot.set(o, { p: o.position.clone(), q: o.quaternion.clone(), s: o.scale.clone() }));
-      return { root: model, loaded: { rig, snapshot }, prev: clonePose(GUARD), baseY, rotY: f.rotationY };
+      return { root: model, loaded: { rig, snapshot }, prev: clonePose(GUARD), baseY, rotY: f.rotationY, skin: sp?.skin, face: sp?.face };
     };
 
     const loadModel = (id: string) => {
@@ -312,6 +320,15 @@ export default function App() {
         uaPose[2] + (az - uaPose[2]) * blend);
     };
 
+    // daño facial acumulado (replay MMAM): regenera la textura de la
+    // cara solo cuando cambia el nivel — nunca frame a frame
+    const applyDmg = (f: Fighter, level: number, bleeding: boolean) => {
+      const key = `${Math.round(level * 40)}${bleeding ? "b" : ""}`;
+      if (f.root.userData.dmgKey === key) return;
+      f.root.userData.dmgKey = key;
+      if (f.loaded.rig) applyFaceDamage(f.loaded.rig.head, f.skin, f.face, { level, bleeding });
+    };
+
     const watcher = setInterval(() => {
       if (loading || !attacker) return;
       if (attacker.root.userData.modelId !== modelRef.current || duoActive !== duoRef.current
@@ -359,6 +376,10 @@ export default function App() {
           }
           tR = Math.min(tR, step.dur);
 
+          // daño visual acumulado: las caras cuentan el combate
+          applyDmg(attacker, step.dmg[0], step.bleed[0]);
+          applyDmg(rival, step.dmg[1], step.bleed[1]);
+
           // guion (DUO_SEQ) con el resultado que dicta MMAM, o posición continua
           const seqR = DUO_SEQ[step.move];
           const cfgR = DUO[step.move] ?? DUO_DEFAULT;
@@ -381,26 +402,14 @@ export default function App() {
           fA.prev = lerpPose(fA.prev, poseA, 0.4); applyPose(fA.loaded.rig!, fA.prev);
           fB.prev = lerpPose(fB.prev, poseB, 0.4); applyPose(fB.loaded.rig!, fB.prev);
 
-          // disposición de escena (igual que el modo duelo manual)
-          let mode = cfgR.mode ?? "face";
-          let dynTop = cfgR.top;
-          const mA = beatA?.move ?? "", mB = beatB?.move ?? "";
-          if (beatA || beatB) {
-            if (GROUND_TOP.has(mA) || GROUND_BOTTOM.has(mB)) { mode = "ground"; dynTop = true; }
-            else if (GROUND_BOTTOM.has(mA) || GROUND_TOP.has(mB)) { mode = "ground"; dynTop = false; }
-          }
-          if (mode === "face") {
-            const d = (cfgR.dist ?? 1.1) / 2;
-            fA.root.position.set(0, fA.baseY, d); fA.root.rotation.y = Math.PI;
-            fB.root.position.set(0, fB.baseY, -d); fB.root.rotation.y = 0;
-          } else if (mode === "ground") {
-            const aTop = dynTop !== false;
-            fA.root.position.set(0, fA.baseY, aTop ? 0.42 : -0.3); fA.root.rotation.y = aTop ? Math.PI : 0;
-            fB.root.position.set(0, fB.baseY, aTop ? -0.3 : 0.42); fB.root.rotation.y = aTop ? 0 : Math.PI;
-          } else { // behind
-            fA.root.position.set(0, fA.baseY, -0.42); fA.root.rotation.y = 0;
-            fB.root.position.set(0, fB.baseY, 0.18); fB.root.rotation.y = 0;
-          }
+          /* escena FIJA: cada luchador plantado en su sitio, cara a
+             cara, del primer al último turno. Los eventos no mueven a
+             nadie ni la cámara — solo cambian las poses (quien cae,
+             cae donde está). */
+          attacker.root.position.set(0, attacker.baseY, 0.55);
+          attacker.root.rotation.y = Math.PI;
+          rival.root.position.set(0, rival.baseY, -0.55);
+          rival.root.rotation.y = 0;
 
           // puntería hacia quien defiende
           fA.root.updateMatrixWorld(true);
@@ -617,7 +626,7 @@ export default function App() {
                 className="flex-1 py-2 rounded text-[12px] font-black bg-amber-500 text-black">
                 {repPlaying ? "⏸ Pausar" : "▶ Seguir"}
               </button>
-              <button onClick={startReplay}
+              <button onClick={() => startReplay()}
                 className="flex-1 py-2 rounded text-[12px] font-black bg-stone-800">
                 ⟲ Reiniciar combate
               </button>
