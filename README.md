@@ -16,3 +16,7 @@ npm run build
 ```
 
 Cada push a `main` despliega automáticamente el banco de pruebas en GitHub Pages.
+
+## Replay MMAM
+
+El banco incluye un modo replay del log de combate de MMAM (`?replay=1`), con dos combates de demostración: final por KO (por defecto) y final por sumisión (`&fight=sub`).
