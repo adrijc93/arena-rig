@@ -11,6 +11,9 @@ import { MODELS } from "./rig/manifest";
 import { buildVoxelPuppet, FACE_PRESETS } from "./rig/voxelPuppet";
 import type { PuppetSpec } from "./rig/voxelPuppet";
 import { DUO, DUO_DEFAULT, DUO_SEQ, duoBeatAt } from "./rig/duo";
+import { DEMO_FIGHT } from "./data/demoFight";
+import { resolveReplay } from "./rig/replay";
+import type { ReplayStep } from "./rig/replay";
 
 /* Puntería: qué brazos golpean y a qué altura apuntan (cabeza o cuerpo).
    Se aplica en modo duelo a quien ATACA (tú o el rival según el movimiento).
@@ -107,6 +110,39 @@ export default function App() {
   const [faceId, setFaceId] = useState(q.get("cara") ?? "base");
   const [status, setStatus] = useState("Cargando…");
 
+  /* ─── MODO REPLAY MMAM ─────────────────────────────────────────
+     Reproduce un log de combate de MMAM (src/data/demoFight.ts de
+     momento; en producción lo enchufa el motor de turnos de MMAM).
+     Cada evento = un paso de escena: movimiento, resultado del
+     guion elegido por el ActionResult y quién de los dos ataca. */
+  const [replayOn, setReplayOn] = useState(q.get("replay") === "1");
+  const [repIdx, setRepIdx] = useState(0);
+  const [repPlaying, setRepPlaying] = useState(true);
+  const replayOnRef = useRef(replayOn); replayOnRef.current = replayOn;
+  const repRef = useRef<{ idx: number; t0: number; playing: boolean; frozen?: number; steps: ReplayStep[] }>(
+    { idx: 0, t0: performance.now(), playing: true, steps: [] });
+
+  const startReplay = () => {
+    repRef.current = { idx: 0, t0: performance.now(), playing: true, frozen: 0, steps: resolveReplay(DEMO_FIGHT) };
+    setRepIdx(0);
+    setRepPlaying(true);
+    setStatus(`REPLAY MMAM · ${repRef.current.steps.length} eventos`);
+  };
+  const toggleReplay = () => {
+    const on = !replayOn;
+    setReplayOn(on);
+    if (on) {
+      setMoveSet("pie");
+      setDuo(true);                 // el replay necesita a los dos en escena
+      startReplay();
+    }
+  };
+  const repPause = () => {
+    const r = repRef.current;
+    if (r.playing) { r.frozen = (performance.now() - r.t0) / 1000; r.playing = false; setRepPlaying(false); }
+    else { r.t0 = performance.now() - (r.frozen ?? 0) * 1000; r.playing = true; setRepPlaying(true); }
+  };
+
   const modelRef = useRef(modelId); modelRef.current = modelId;
   const setRef = useRef(moveSet); setRef.current = moveSet;
   const moveRef = useRef(move); moveRef.current = move;
@@ -129,6 +165,12 @@ export default function App() {
       clicks: playRef.current?.move === id ? playRef.current.clicks + 1 : 0,
     };
   };
+
+  // arranque directo por URL (?replay=1): prepara escena y log
+  useEffect(() => {
+    if (replayOn) { setMoveSet("pie"); setDuo(true); startReplay(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const el = ref.current!;
@@ -299,6 +341,83 @@ export default function App() {
             t = Math.min(el, dur);
           }
         }
+        // ═══ REPLAY MMAM: log de combate evento a evento ═══
+        const rep = repRef.current;
+        if (replayOnRef.current && rep.steps.length > 0 && attacker && attacker.loaded.rig && rival && rival.loaded.rig) {
+          let step = rep.steps[rep.idx];
+          let tR = rep.playing ? (performance.now() - rep.t0) / 1000 : (rep.frozen ?? step.dur);
+          if (rep.playing && tR >= step.dur) {
+            if (rep.idx < rep.steps.length - 1) {
+              rep.idx++; rep.t0 = performance.now(); tR = 0;
+              step = rep.steps[rep.idx];
+              setRepIdx(rep.idx);
+              setStatus(`REPLAY · Asalto ${step.round} · evento ${rep.idx + 1}/${rep.steps.length}`);
+            } else {
+              rep.playing = false; rep.frozen = step.dur; setRepPlaying(false);
+              setStatus("REPLAY · FIN DEL COMBATE");
+            }
+          }
+          tR = Math.min(tR, step.dur);
+
+          // guion (DUO_SEQ) con el resultado que dicta MMAM, o posición continua
+          const seqR = DUO_SEQ[step.move];
+          const cfgR = DUO[step.move] ?? DUO_DEFAULT;
+          let beatA: { move: string; tm: number } | null = null;
+          let beatB: { move: string; tm: number } | null = null;
+          if (seqR) {
+            const tt = Math.min(tR, seqR.T - 1e-4);
+            const oc = seqR.outcomes[step.outcome % seqR.outcomes.length];
+            beatA = duoBeatAt(oc.atk, tt);
+            beatB = duoBeatAt(oc.def, tt);
+          }
+          // swap: quién de los dos ATACA en este evento
+          const fA = step.swap ? rival : attacker;
+          const fB = step.swap ? attacker : rival;
+
+          let poseA = beatA ? mmaPoseFor(beatA.move, beatA.tm) : mmaPoseFor(step.move, tR);
+          let poseB = beatB ? mmaPoseFor(beatB.move, beatB.tm)
+            : mmaPoseFor(cfgR.def, cfgR.pA && cfgR.pD ? tR * (cfgR.pD / cfgR.pA) : tR);
+          if (collideOn.current) { poseA = resolvePoseCollisions(poseA); poseB = resolvePoseCollisions(poseB); }
+          fA.prev = lerpPose(fA.prev, poseA, 0.4); applyPose(fA.loaded.rig!, fA.prev);
+          fB.prev = lerpPose(fB.prev, poseB, 0.4); applyPose(fB.loaded.rig!, fB.prev);
+
+          // disposición de escena (igual que el modo duelo manual)
+          let mode = cfgR.mode ?? "face";
+          let dynTop = cfgR.top;
+          const mA = beatA?.move ?? "", mB = beatB?.move ?? "";
+          if (beatA || beatB) {
+            if (GROUND_TOP.has(mA) || GROUND_BOTTOM.has(mB)) { mode = "ground"; dynTop = true; }
+            else if (GROUND_BOTTOM.has(mA) || GROUND_TOP.has(mB)) { mode = "ground"; dynTop = false; }
+          }
+          if (mode === "face") {
+            const d = (cfgR.dist ?? 1.1) / 2;
+            fA.root.position.set(0, fA.baseY, d); fA.root.rotation.y = Math.PI;
+            fB.root.position.set(0, fB.baseY, -d); fB.root.rotation.y = 0;
+          } else if (mode === "ground") {
+            const aTop = dynTop !== false;
+            fA.root.position.set(0, fA.baseY, aTop ? 0.42 : -0.3); fA.root.rotation.y = aTop ? Math.PI : 0;
+            fB.root.position.set(0, fB.baseY, aTop ? -0.3 : 0.42); fB.root.rotation.y = aTop ? 0 : Math.PI;
+          } else { // behind
+            fA.root.position.set(0, fA.baseY, -0.42); fA.root.rotation.y = 0;
+            fB.root.position.set(0, fB.baseY, 0.18); fB.root.rotation.y = 0;
+          }
+
+          // puntería hacia quien defiende
+          fA.root.updateMatrixWorld(true);
+          fB.root.updateMatrixWorld(true);
+          const aList = AIM[beatA ? beatA.move : step.move];
+          if (aList) for (const a of aList) aimArm(fA, a.side, a.lvl, fB);
+          else {
+            const bList = AIM[beatB ? beatB.move : cfgR.def];
+            if (bList) for (const b of bList) aimArm(fB, b.side, b.lvl, fA);
+          }
+
+          controls.update();
+          renderer.render(scene, camera);
+          raf = requestAnimationFrame(loop);
+          return;
+        }
+
         if (attacker && attacker.loaded.rig) {
           // ─── secuencia con guion (golpes y derribos con rival) ───
           // varios RESULTADOS se alternan CLICK A CLICK: defiende / le
@@ -434,16 +553,40 @@ export default function App() {
         <p className="text-[10px] text-stone-500">🖱️ arrastra = girar cámara · rueda = zoom · botón derecho = desplazar</p>
       </div>
 
-      <div ref={ref} className="flex-1 min-h-0" />
+      <div ref={ref} className="flex-1 min-h-0 relative">
+        {replayOn && (
+          <div className="absolute top-2 left-2 right-2 z-10 pointer-events-none space-y-1">
+            {repRef.current.steps.slice(Math.max(0, repIdx - 3), repIdx + 1).map((s, i, arr) => {
+              const isNow = i === arr.length - 1 && repPlaying;
+              return (
+                <p key={repIdx - arr.length + 1 + i}
+                  className={`text-[11px] leading-snug drop-shadow ${isNow ? "text-amber-300 font-black" : "text-stone-400"}`}>
+                  <span className="text-stone-500 font-mono">R{s.round}</span>{" "}{s.label}
+                  {s.finish && " 🏁"}
+                </p>
+              );
+            })}
+            {!repPlaying && repIdx >= repRef.current.steps.length - 1 && (
+              <p className="text-sm font-black text-red-400 uppercase tracking-widest drop-shadow">Fin del combate</p>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="p-3 bg-black/40 border-t border-stone-700/50 space-y-2">
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <p className="text-[10px] uppercase text-stone-500 font-bold">Personaje</p>
-            <button onClick={() => setDuo(!duo)}
-              className={`py-1 px-3 rounded text-[11px] font-black ${duo ? "bg-red-500 text-black" : "bg-stone-800"}`}>
-              {duo ? "🆚 RIVAL: ON" : "🆚 RIVAL: OFF"}
-            </button>
+            <div className="flex gap-1">
+              <button onClick={toggleReplay}
+                className={`py-1 px-3 rounded text-[11px] font-black ${replayOn ? "bg-red-500 text-black" : "bg-stone-800"}`}>
+                {replayOn ? "🎬 REPLAY: ON" : "🎬 REPLAY"}
+              </button>
+              <button onClick={() => setDuo(!duo)}
+                className={`py-1 px-3 rounded text-[11px] font-black ${duo ? "bg-red-500 text-black" : "bg-stone-800"}`}>
+                {duo ? "🆚 RIVAL: ON" : "🆚 RIVAL: OFF"}
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-1">
             {MODELS.map((m) => (
@@ -467,6 +610,23 @@ export default function App() {
           </div>
         </div>
 
+        {replayOn ? (
+          <div className="space-y-1.5">
+            <div className="flex gap-1">
+              <button onClick={repPause}
+                className="flex-1 py-2 rounded text-[12px] font-black bg-amber-500 text-black">
+                {repPlaying ? "⏸ Pausar" : "▶ Seguir"}
+              </button>
+              <button onClick={startReplay}
+                className="flex-1 py-2 rounded text-[12px] font-black bg-stone-800">
+                ⟲ Reiniciar combate
+              </button>
+            </div>
+            <p className="text-[10px] text-stone-500">
+              Log de MMAM ({repRef.current.steps.length} eventos) → motor arena-rig. Asalto {repRef.current.steps[repIdx]?.round ?? 1} · evento {repIdx + 1}/{repRef.current.steps.length}
+            </p>
+          </div>
+        ) : (
         <div className="space-y-1.5">
           <div className="flex gap-1">
             {([["comun", "Común"], ["pie", "MMA · En pie 🥊"], ["suelo", "MMA · Suelo 🤼"]] as const).map(([s, l]) => (
@@ -503,6 +663,7 @@ export default function App() {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );
