@@ -13,7 +13,8 @@ import type { Pose } from "./poseDriver";
 export type MmaGroundMoveId =
   | "single-leg" | "ippon" | "suplex"
   | "media-guardia" | "side-control" | "rodilla-vientre" | "espalda" | "pase-guardia"
-  | "mataleon" | "guillotina" | "triangulo" | "kimura" | "americana"
+  | "mataleon" | "guillotina" | "triangulo" | "kimura" | "americana" | "armbar" | "heel-hook"
+  | "caught" | "tap-out"
   | "shrimp" | "upa";
 
 type GroundEntry = { id: MmaGroundMoveId; label: string; seccion: "suelo"; grupo: string };
@@ -38,6 +39,13 @@ export const MMA_GROUND_SUMISIONES: GroundEntry[] = [
   { id: "triangulo", label: "Triángulo", seccion: "suelo", grupo: "Sumisiones" },
   { id: "kimura", label: "Kimura", seccion: "suelo", grupo: "Sumisiones" },
   { id: "americana", label: "Americana", seccion: "suelo", grupo: "Sumisiones" },
+  { id: "armbar", label: "Armbar (palanca de brazo)", seccion: "suelo", grupo: "Sumisiones" },
+  { id: "heel-hook", label: "Heel hook (palanca de talón)", seccion: "suelo", grupo: "Sumisiones" },
+];
+
+export const MMA_GROUND_REACCIONES: GroundEntry[] = [
+  { id: "caught", label: "Atrapado (sufre la llave)", seccion: "suelo", grupo: "Reacciones" },
+  { id: "tap-out", label: "¡TAP OUT! (se rinde)", seccion: "suelo", grupo: "Reacciones" },
 ];
 
 export const MMA_GROUND_ESCAPES: GroundEntry[] = [
@@ -275,6 +283,69 @@ export function mmaGroundPoseFor(id: string, t: number): Pose | null {
       p.uaL = [-1.0 - crank * 0.25, 0.2, -0.1]; p.faL = -1.6 - crank * 0.3; // pinta hacia el suelo
       p.twist = crank * 0.25;
       p.headX = 0.15;
+      return p;
+    }
+
+    case "armbar": {
+      // armbar desde la guardia: de espaldas, las dos manos tiran del
+      // "brazo" atrapado contra el pecho, una pierna cruza la "cara" y la
+      // otra el "pecho" — el EMPUJE DE CADERA es lo que rompe el brazo
+      const buck = Math.max(0, Math.sin(t * 2.6)) * 0.09;   // empujes de cadera
+      p.hipsX = -1.5; p.bob = -0.78 + buck;
+      p.thL = -1.35; p.thLY = 0.45; p.shL = 0.6;            // pierna sobre la "cara"
+      p.thR = -0.9; p.thRY = -0.55; p.shR = 1.35;           // tobillo cruzado (ancla)
+      p.uaR = [-1.3, -0.1, 0.1]; p.faR = -1.7;              // tira del brazo al pecho
+      p.uaL = [-1.3, 0.1, -0.1]; p.faL = -1.7;
+      p.lean = -0.18 - buck * 0.5; p.headX = -0.32;
+      return p;
+    }
+
+    case "heel-hook": {
+      // heel hook: caído sobre una cadera (ashi garami), las piernas
+      // enredan la "pierna" rival, el antebrazo atrapa el "talón" bajo la
+      // axila y los HOMBROS GIRAN mientras la cadera empuja — la torsión
+      // es lo que rompe la rodilla. Va y viene: cierra, tuerce, suelta.
+      const u = cyc(t, 2.2);
+      const twist = u < 0.3 ? easeIn(u / 0.3) : u < 0.65 ? 1 : 1 - easeIn((u - 0.65) / 0.35);
+      p.hipsX = -0.9; p.hipsZ = 0.4; p.bob = -0.62;         // sentado de lado
+      p.lean = 0.25 - twist * 0.15;
+      p.twist = 0.4 + twist * 0.35;                         // los hombros giran con la llave
+      p.uaR = [-1.15, -0.35, 0.2]; p.faR = -2.1;            // talón atrapado en la axila
+      p.uaL = [-1.05 - twist * 0.3, 0.25, -0.2]; p.faL = -2.2; // cierra la figura de cuatro
+      p.thL = -0.8; p.thLY = 0.5; p.shL = 1.5;              // enredo interior
+      p.thR = -0.5 - twist * 0.2; p.thRY = -0.6; p.shR = 1.3; // pierna exterior presiona
+      p.headX = 0.15 + twist * 0.1;
+      return p;
+    }
+
+    /* ───────────── REACCIONES DE SUMISIÓN ───────────── */
+    case "caught": {
+      // atrapado en la llave: doblado hacia delante, cabeza baja, las
+      // manos peleando el agarre y sacudidas cortas de lucha — aguanta
+      const s = Math.sin(t * 9) * 0.05;                     // forcejeo rápido
+      const s2 = Math.sin(t * 4.4) * 0.08;                  // tirones del torso
+      p.bob = -0.35 + s; p.hipsX = -0.2; p.hipsZ = s2;
+      p.lean = 0.45 + s2 * 0.5; p.headX = 0.3;              // doblado, cabeza protegida
+      p.uaR = [-1.05 + s * 2, -0.25, 0.2]; p.faR = -2.3;    // pelea el agarre
+      p.uaL = [-1.0 - s * 2, 0.2, -0.15]; p.faL = -2.35;
+      p.thL = -0.45; p.shL = 1.1; p.thR = -0.3; p.shR = 0.9;
+      p.twist = 0.3 + s2;
+      return p;
+    }
+
+    case "tap-out": {
+      // ¡TAP! golpeteo desesperado con la mano libre (tres palmadas)
+      // y luego el cuerpo se APAGA: los brazos caen y la cabeza se desploma
+      const u = clamp01(t / 2.2);
+      const taps = u < 0.45 ? Math.abs(Math.sin((u / 0.45) * Math.PI * 3)) : 0;
+      const limp = u < 0.5 ? 0 : easeIn((u - 0.5) / 0.5);
+      p.bob = -0.4 - limp * 0.2; p.hipsX = -0.2;
+      p.lean = 0.4 - limp * 0.35; p.headX = 0.25 - limp * 0.5;  // se desploma
+      p.headY = limp * 0.25;
+      p.uaR = [-0.9 - taps * 0.5 + limp * 1.1, -0.3, 0.5];      // palmadas al suelo
+      p.faR = -0.6 - taps * 0.4 + limp * 0.2;
+      p.uaL = [-1.1 + limp * 0.6, 0.2, -0.3]; p.faL = -2.0 + limp * 1.6; // el otro brazo cae
+      p.thL = -0.45; p.shL = 1.1; p.thR = -0.3; p.shR = 0.9;
       return p;
     }
 
