@@ -49,7 +49,14 @@ export interface ReplayStep {
   finish?: MmamFinish;
   dmg: [number, number];      // daño facial acumulado [player, opponent] tras este paso (0..1)
   bleed: [boolean, boolean];  // corte abierto [player, opponent]
+  /** Coreografía ad-hoc (contragolpes, flash KDs): si existe, sustituye
+      al guion DUO_SEQ[move]. Mismo formato que DuoBeat. */
+  seqAtk?: SeqBeat[];
+  seqDef?: SeqBeat[];
 }
+
+/** Beat de coreografía ad-hoc (estructuralmente idéntico a DuoBeat de duo.ts). */
+export interface SeqBeat { move: string; from: number; to: number }
 
 /* ─── Tabla de traducción acción MMAM → movimiento arena-rig ───
    kind:
@@ -102,12 +109,12 @@ const MAP: Record<string, { move: string; kind: Kind; outcome?: number }> = {
   survive:        { move: "guardia-abajo", kind: "hold" },
   /* sumisiones */
   sub_rnc:        { move: "mataleon", kind: "sub" },
-  sub_armbar:     { move: "kimura", kind: "sub" },      // TODO: armbar propio
+  sub_armbar:     { move: "armbar", kind: "sub" },
   sub_triangle:   { move: "triangulo", kind: "sub" },
   sub_guillotine: { move: "guillotina", kind: "sub" },
   sub_kimura:     { move: "kimura", kind: "sub" },
   sub_americana:  { move: "americana", kind: "sub" },
-  sub_heel_hook:  { move: "kimura", kind: "sub" },      // TODO: heel hook propio
+  sub_heel_hook:  { move: "heel-hook", kind: "sub" },
   /* utilidad */
   rest:           { move: "guardia-mma", kind: "hold" },
 };
@@ -121,7 +128,51 @@ const SEQ_T: Record<string, number> = {
   backfist: 4.4, codo: 3.6, "codo-giro": 4.4, "patada-cuerpo": 4.4,
   frontal: 4.2, lateral: 4.2, switch: 4.0, rodilla: 3.6,
   "rodilla-voladora": 4.8, derribo: 5.2, "single-leg": 5.0, suplex: 4.6, ippon: 4.4,
+  /* sumisiones (outcome 0 = resiste · 1 = ¡TAP!) */
+  mataleon: 5.6, armbar: 5.2, "heel-hook": 5.2, kimura: 5.2,
+  americana: 5.2, triangulo: 5.2, guillotina: 5.2,
 };
+
+const COUNTER_DUR = 3.8;    // coreografía de contragolpe
+const FLASHKD_DUR = 4.4;    // coreografía de flash knockdown
+
+/** Contragolpe: el defensor SALE con el jab, el atacante lo esquiva
+    y le entra limpio el golpe — la coreografía sustituye al guion. */
+function counterBeats(strike: string): { atk: SeqBeat[]; def: SeqBeat[] } {
+  return {
+    atk: [
+      { move: "guardia-mma", from: 0, to: 0.5 },
+      { move: "esquiva", from: 0.5, to: 1.15 },
+      { move: strike, from: 1.15, to: 1.95 },
+      { move: "guardia-mma", from: 1.95, to: COUNTER_DUR },
+    ],
+    def: [
+      { move: "guardia-mma", from: 0, to: 0.5 },
+      { move: "jab", from: 0.5, to: 1.2 },
+      { move: "golpeado", from: 1.2, to: 2.4 },
+      { move: "zozobra", from: 2.4, to: 3.2 },
+      { move: "guardia-mma", from: 3.2, to: COUNTER_DUR },
+    ],
+  };
+}
+
+/** Flash knockdown: el golpe le apaga las piernas un instante — cae a
+    una rodilla y resucita (reacción "flash-kd" de mmaMoves). */
+function flashKdBeats(strike: string): { atk: SeqBeat[]; def: SeqBeat[] } {
+  return {
+    atk: [
+      { move: "guardia-mma", from: 0, to: 0.5 },
+      { move: strike, from: 0.5, to: 1.6 },
+      { move: "guardia-mma", from: 1.6, to: FLASHKD_DUR },
+    ],
+    def: [
+      { move: "guardia-mma", from: 0, to: 0.95 },
+      { move: "golpeado", from: 0.95, to: 1.55 },
+      { move: "flash-kd", from: 1.55, to: 3.6 },
+      { move: "guardia-mma", from: 3.6, to: FLASHKD_DUR },
+    ],
+  };
+}
 
 const HOLD_DUR = 2.6;       // posiciones y acciones continuas
 const SUB_DUR = 4.2;        // sumisión mantenida (sufriendo la llave)
@@ -177,19 +228,36 @@ export function resolveReplay(events: FightEvent[]): ReplayStep[] {
     if (m.kind === "strike") outcome = landed(e) ? 1 : 0;          // 0 defiende · 1 le entra
     else if (m.kind === "takedown") outcome = landed(e) ? 0 : 1;  // 0 consuma · 1 defendido
     else if (m.kind === "defense") outcome = m.outcome ?? 0;
+    else if (m.kind === "sub") outcome = e.finish === "submission" ? 1 : 0; // 0 resiste · 1 ¡TAP!
 
     /* quién mueve en escena: en defensas ataca el OTRO (este defiende) */
     const swap = m.kind === "defense" ? e.attacker === "player" : e.attacker === "opponent";
 
     let dur: number;
-    if (m.kind === "sub") dur = e.finish === "submission" ? SUB_DUR + 0.8 : SUB_DUR;
+    if (m.kind === "sub") dur = SEQ_T[m.move] ?? SUB_DUR;
     else if (e.action === "rest") dur = REST_DUR;
     else dur = SEQ_T[m.move] ?? HOLD_DUR;
+
+    /* coreografía ad-hoc: flash KD y contragolpes tienen guion propio
+       (el defensor sale con el jab y se come la contra / cae a una
+       rodilla y resucita) — sustituyen al DUO_SEQ del movimiento */
+    let seqAtk: SeqBeat[] | undefined;
+    let seqDef: SeqBeat[] | undefined;
+    if (m.kind === "strike" && landed(e)) {
+      if (e.flashKnockdown) {
+        const b = flashKdBeats(m.move);
+        seqAtk = b.atk; seqDef = b.def; dur = FLASHKD_DUR;
+      } else if (e.hit === "counter") {
+        const b = counterBeats(m.move);
+        seqAtk = b.atk; seqDef = b.def; dur = COUNTER_DUR;
+      }
+    }
 
     steps.push({
       move: m.move, outcome, swap, dur,
       round: e.round, label: e.message, finish: e.finish,
       dmg: [dmg[0], dmg[1]], bleed: [bleed[0], bleed[1]],
+      seqAtk, seqDef,
     });
   }
   return steps;
