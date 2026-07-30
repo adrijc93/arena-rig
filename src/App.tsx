@@ -37,6 +37,11 @@ const AIM: Record<string, { side: "L" | "R"; lvl: "head" | "body" }[]> = {
 const GROUND_TOP = new Set(["guardia-arriba", "montada", "ground-pound", "side-control", "rodilla-vientre", "pase-guardia", "kimura", "americana"]);
 const GROUND_BOTTOM = new Set(["guardia-abajo", "media-guardia", "sumision", "triangulo", "armbar", "heel-hook", "caught", "tap-out", "shrimp", "upa", "derribado", "ko-plano"]);
 
+/* Replay: poses TUMBADAS (el otro se recoloca hacia su cabeza) y
+   sumisiones desde abajo cuyo tap-out se desploma encima. */
+const REPLAY_LYING = new Set(["guardia-abajo", "media-guardia", "derribado", "ko-plano", "sumision", "triangulo", "armbar", "heel-hook", "tap-out", "shrimp", "upa"]);
+const REPLAY_SUB_BOT = new Set(["sumision", "triangulo", "armbar"]);
+
 /* ════════════════════════════════════════════════════════════════
    ARENA RIG LAB — banco de pruebas del motor de animación.
    Todos los personajes son pieles de la marioneta voxel y todas
@@ -299,6 +304,7 @@ export default function App() {
     // rival. Se funde según lo extendido que esté el codo: en guardia no
     // manda, con el brazo estirado apunta de verdad al objetivo.
     const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3();
+    const vPosA = new THREE.Vector3(), vPosB = new THREE.Vector3();
     const qA = new THREE.Quaternion(), qH = new THREE.Quaternion();
     const aimArm = (f: Fighter, side: "L" | "R", lvl: "head" | "body", tgt: Fighter) => {
       const rig = f.loaded.rig!, rigT = tgt.loaded.rig!;
@@ -416,13 +422,24 @@ export default function App() {
           fB.prev = lerpPose(fB.prev, poseB, 0.4); applyPose(fB.loaded.rig!, fB.prev);
 
           /* escena FIJA: cada luchador plantado en su sitio, cara a
-             cara, del primer al último turno. Los eventos no mueven a
-             nadie ni la cámara — solo cambian las poses (quien cae,
-             cae donde está). */
-          attacker.root.position.set(0, attacker.baseY, 0.55);
-          attacker.root.rotation.y = Math.PI;
-          rival.root.position.set(0, rival.baseY, -0.55);
-          rival.root.rotation.y = 0;
+             cara, del primer al último turno. EXCEPCIÓN de suelo:
+             cuando uno queda tumbado, el otro se recoloca hacia su
+             CABEZA (si no, se queda a la altura de los pies). El
+             cambio se suaviza con lerp para que no dé un salto. */
+          const mvA = beatA ? beatA.move : step.move;
+          const mvB = beatB ? beatB.move : cfgR.def;
+          const aLy = REPLAY_LYING.has(mvA), bLy = REPLAY_LYING.has(mvB);
+          const homeA = fA === attacker ? 0.55 : -0.55, dirA = fA === attacker ? 1 : -1;
+          const homeB = fB === attacker ? 0.55 : -0.55, dirB = fB === attacker ? 1 : -1;
+          let zA = homeA, zB = homeB;
+          if (aLy && !bLy) zB = homeA + dirA * 0.45;           // B sobre A: hacia su cabeza
+          else if (bLy && !aLy) zA = homeB + dirB * 0.45;      // A sobre B
+          else if (aLy && bLy && mvB === "tap-out" && REPLAY_SUB_BOT.has(mvA))
+            zB = homeA + dirA * 0.45;                          // el tap se desploma encima
+          vPosA.set(0, fA.baseY, zA); fA.root.position.lerp(vPosA, 0.22);
+          vPosB.set(0, fB.baseY, zB); fB.root.position.lerp(vPosB, 0.22);
+          fA.root.rotation.y = fA === attacker ? Math.PI : 0;
+          fB.root.rotation.y = fB === attacker ? Math.PI : 0;
 
           // puntería hacia quien defiende
           fA.root.updateMatrixWorld(true);
@@ -505,11 +522,13 @@ export default function App() {
               rival.root.position.set(0, rival.baseY, -d);
               rival.root.rotation.y = 0;
             } else if (mode === "ground") {
-              // top = arriba (de pie/su rodillas dominando); bottom = tumbado
+              // top = arriba (de pie/su rodillas dominando); bottom = tumbado.
+              // El de arriba se coloca hacia la CABEZA del de abajo (-Z),
+              // no a la altura de los pies.
               const aTop = dynTop !== false;
-              attacker.root.position.set(0, attacker.baseY, aTop ? 0.42 : -0.3);
+              attacker.root.position.set(0, attacker.baseY, aTop ? -0.75 : -0.3);
               attacker.root.rotation.y = aTop ? Math.PI : 0;
-              rival.root.position.set(0, rival.baseY, aTop ? -0.3 : 0.42);
+              rival.root.position.set(0, rival.baseY, aTop ? -0.3 : -0.75);
               rival.root.rotation.y = aTop ? 0 : Math.PI;
             } else { // behind: los dos miran a +Z, atacante detrás
               attacker.root.position.set(0, attacker.baseY, -0.42);
