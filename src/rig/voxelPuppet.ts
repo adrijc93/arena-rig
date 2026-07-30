@@ -105,7 +105,13 @@ function joint(parent: THREE.Object3D, name: string, x: number, y: number, z: nu
    sombreado suave: las sombras translúcidas se leían como manchas.
    Los rasgos viven en el tercio central (el frente, +Z); el resto del
    lienzo es piel (y pelo rapado) alrededor de la cabeza. */
-function faceTexture(skin: number, face?: FaceSpec): THREE.CanvasTexture {
+/** Daño de combate acumulado en la cara (replay MMAM). */
+export interface DamageSpec {
+  level: number;          // 0 = intacto … 1 = destrozado (KO)
+  bleeding?: boolean;     // mmam causedBleeding: sangre viva y regueros largos
+}
+
+function faceTexture(skin: number, face?: FaceSpec, dmg?: DamageSpec): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 256; c.height = 128;
   const g = c.getContext("2d")!;
@@ -211,10 +217,75 @@ function faceTexture(skin: number, face?: FaceSpec): THREE.CanvasTexture {
     g.fillRect(CX + 13, 90, 4, 5);
   }
 
+  /* ── DAÑO DE COMBATE ───────────────────────────────────────────
+     Se pinta ENCIMA de las facciones, con la misma regla de oro:
+     tinta plana y formas sólidas. El nivel revela lesiones en
+     escalones (ojera → ojo hinchado → corte de ceja → nariz → labio
+     → frente); bleeding alarga y aviva los regueros de sangre. */
+  if (dmg && dmg.level > 0.02) {
+    const L = Math.min(1, dmg.level);
+    const BL = !!dmg.bleeding;
+    const PURPLE = "rgba(80,38,86,0.88)";   // hematoma
+    const BLOOD = BL ? "#c41e28" : "#8c1620"; // sangre viva / seca
+    const trick = (x: number, y: number, len: number, w = 3) => {
+      g.fillStyle = BLOOD;
+      g.fillRect(x, y, w, Math.round(len * (BL ? 1.6 : 1)));
+    };
+    if (L >= 0.12) {                          // ojera izquierda machacada
+      g.fillStyle = PURPLE;
+      g.fillRect(CX - 29, 70, 20, 9);
+    }
+    if (L >= 0.28) {                          // ojo derecho hinchado, casi cerrado
+      g.fillStyle = PURPLE;
+      g.fillRect(CX + 9, 48, 22, 14);
+      g.fillStyle = INK;
+      g.fillRect(CX + 13, 58, 14, 3);         // rendija del párpado
+    }
+    if (L >= 0.42) {                          // corte en la ceja izquierda + reguero
+      g.fillStyle = BLOOD;
+      g.save(); g.translate(CX - 20, 40); g.rotate(0.25); g.fillRect(-2, -6, 5, 13); g.restore();
+      trick(CX - 20, 47, 26);
+    }
+    if (L >= 0.55) {                          // nariz sangrando
+      g.fillStyle = BLOOD;
+      g.fillRect(CX - 6, 78, 12, 6);
+      trick(CX - 3, 84, 12, 4);
+    }
+    if (L >= 0.70) {                          // labio partido + sangre a la barbilla
+      g.fillStyle = BLOOD;
+      g.fillRect(CX + 11, 90, 8, 8);
+      trick(CX + 13, 98, 15, 4);
+    }
+    if (L >= 0.85) {                          // corte en la frente + pómulo derecho morado
+      g.fillStyle = BLOOD;
+      g.fillRect(CX + 18, 18, 4, 10);
+      trick(CX + 19, 28, 14);
+      g.fillStyle = PURPLE;
+      g.fillRect(CX + 18, 84, 17, 9);
+    }
+  }
+
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter;
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
+}
+
+/** Regenera la cara de un muñeco YA construido con el daño acumulado.
+    Busca la malla de cabeza (la del material múltiple con la textura
+    de facciones) y le cambia el mapa. Devuelve false si no la halla. */
+export function applyFaceDamage(head: THREE.Object3D, skin: number | undefined, face: FaceSpec | undefined, dmg: DamageSpec): boolean {
+  let mesh: THREE.Mesh | null = null;
+  head.traverse((o) => {
+    if (!mesh && (o as THREE.Mesh).isMesh && Array.isArray((o as THREE.Mesh).material)) mesh = o as THREE.Mesh;
+  });
+  if (!mesh) return false;
+  const mats = (mesh as THREE.Mesh).material as THREE.MeshStandardMaterial[];
+  const old = mats[0].map;
+  mats[0].map = faceTexture(skin ?? D.skin, face, dmg);
+  mats[0].needsUpdate = true;
+  old?.dispose();
+  return true;
 }
 
 function headMesh(skin: number, size: number, face?: FaceSpec): THREE.Mesh {
