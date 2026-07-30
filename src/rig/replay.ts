@@ -262,3 +262,79 @@ export function resolveReplay(events: FightEvent[]): ReplayStep[] {
   }
   return steps;
 }
+
+/* ════════════════════════════════════════════════════════════════
+   ADAPTADOR MMAM → ARENA RIG
+   Convierte una entrada REAL del combatLog de mmam (CombatLogEntry,
+   src/types/combat.ts) en un FightEvent que entiende resolveReplay.
+
+   OJO: mmam calcula la calidad del impacto (miss/blocked/graze/
+   clean/counter) en action-executor.ts pero NO la guarda en el
+   ActionResult — solo persiste hit (boolean) y damage. Aquí se
+   reconstruye a partir del daño y el baseDamage de la acción.
+   Si algún día mmam persiste `hitQuality` en el resultado, el
+   adaptador la usa tal cual (rama preferente).
+   ════════════════════════════════════════════════════════════════ */
+/** Subconjunto ESTRUCTURAL de CombatLogEntry de mmam que necesita la
+    animación. Compatible con los tipos reales (src/types/actions.ts
+    y src/types/combat.ts de mmam) sin importarlos. */
+export interface MmamLogEntry {
+  round: number;
+  attacker: "player" | "opponent";
+  action: {
+    id: string;
+    type: string;          // ActionType de mmam
+    baseDamage: number;
+  };
+  result: {
+    hit: boolean;
+    damage: number;
+    knockdown: boolean;
+    flashKnockdown: boolean;
+    causedBleeding: boolean;
+    positionChanged?: boolean;
+    newPosition?: string;      // Position de mmam
+    submissionLocked?: boolean;
+    finishType?: MmamFinish;   // lo pone victory-checker en el último turno
+    hitQuality?: MmamHit;      // futuro: si mmam lo persiste, manda
+  };
+  message: string;
+}
+
+/** Reconstruye la calidad del impacto cuando mmam no la persiste.
+    Con GLOBAL_DAMAGE_MULTIPLIER = 0.5 (damage-calculator.ts), el
+    ratio daño/baseDamage queda aprox.: blocked ≈ 0.15 · graze ≈ 0.3
+    · clean ≈ 0.5 · counter ≈ 0.75 (antes del modificador de power). */
+export function deriveHit(e: MmamLogEntry): MmamHit {
+  if (e.result.hitQuality) return e.result.hitQuality;
+  if (!e.result.hit) return "miss";
+  // acciones sin daño propio (derribos, transiciones, escapes, clinch):
+  // hit=true significa que consumaron, no que impactaron un golpe
+  if (e.action.baseDamage === 0) return "clean";
+  const r = e.result.damage / e.action.baseDamage;
+  if (e.result.damage === 0 || r < 0.2) return "blocked";
+  if (r >= 0.7) return "counter";    // critico: coreografía de contragolpe
+  if (r < 0.45) return "graze";
+  return "clean";
+}
+
+/** Una entrada del log de mmam → un evento de combate arena-rig. */
+export function mmamEntryToFightEvent(e: MmamLogEntry): FightEvent {
+  return {
+    round: e.round,
+    attacker: e.attacker,
+    action: e.action.type,
+    hit: deriveHit(e),
+    knockdown: e.result.knockdown || undefined,
+    flashKnockdown: e.result.flashKnockdown || undefined,
+    bleeding: e.result.causedBleeding || undefined,
+    newPosition: e.result.positionChanged ? e.result.newPosition : undefined,
+    finish: e.result.finishType,
+    message: e.message,
+  };
+}
+
+/** El log completo de un combate de mmam → eventos arena-rig. */
+export function mmamLogToFight(log: MmamLogEntry[]): FightEvent[] {
+  return log.map(mmamEntryToFightEvent);
+}
