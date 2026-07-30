@@ -12,6 +12,8 @@ import { applyFaceDamage, buildVoxelPuppet, FACE_PRESETS } from "./rig/voxelPupp
 import type { FaceSpec, PuppetSpec } from "./rig/voxelPuppet";
 import { DUO, DUO_DEFAULT, DUO_SEQ, duoBeatAt } from "./rig/duo";
 import { DEMO_FIGHT, DEMO_FIGHT_SUB } from "./data/demoFight";
+import { DEMO_MMAM_REAL } from "./data/mmamRealDemo";
+import { mmamLogToFight } from "./rig/mmamAdapter";
 import { resolveReplay } from "./rig/replay";
 import type { ReplayStep } from "./rig/replay";
 
@@ -131,8 +133,12 @@ export default function App() {
     { idx: 0, t0: performance.now(), playing: true, steps: [] });
 
   const startReplay = (from = 0) => {
-    // &fight=sub → el combate con final por sumisión (por defecto el de KO)
-    const fight = q.get("fight") === "sub" ? DEMO_FIGHT_SUB : DEMO_FIGHT;
+    // &fight=sub → final por sumisión · &fight=real → log con la forma
+    // EXACTA del combatLog de mmam (pasa por el adaptador) · resto: KO
+    const sel = q.get("fight");
+    const fight = sel === "sub" ? DEMO_FIGHT_SUB
+      : sel === "real" ? mmamLogToFight(DEMO_MMAM_REAL)
+      : DEMO_FIGHT;
     const steps = resolveReplay(fight);
     const idx = Math.max(0, Math.min(steps.length - 1, from));
     // &rept=2.2 congela el evento 2.2 s adentro (capturas de verificación)
