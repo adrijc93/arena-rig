@@ -11,10 +11,8 @@ import { MODELS } from "./rig/manifest";
 import { applyFaceDamage, buildVoxelPuppet, FACE_PRESETS } from "./rig/voxelPuppet";
 import type { FaceSpec, PuppetSpec } from "./rig/voxelPuppet";
 import { DUO, DUO_DEFAULT, DUO_SEQ, duoBeatAt } from "./rig/duo";
-import { DEMO_FIGHT, DEMO_FIGHT_SUB } from "./data/demoFight";
-import { DEMO_MMAM_REAL } from "./data/mmamRealDemo";
-import { mmamLogToFight } from "./rig/mmamAdapter";
-import { resolveReplay } from "./rig/replay";
+import { DEMO_FIGHT, DEMO_FIGHT_SUB, DEMO_MMAM_REAL } from "./data/demoFight";
+import { mmamLogToFight, resolveReplay } from "./rig/replay";
 import type { ReplayStep } from "./rig/replay";
 
 /* Puntería: qué brazos golpean y a qué altura apuntan (cabeza o cuerpo).
