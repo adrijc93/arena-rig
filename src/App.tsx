@@ -159,6 +159,16 @@ export default function App() {
     if (r.playing) { r.frozen = (performance.now() - r.t0) / 1000; r.playing = false; setRepPlaying(false); }
     else { r.t0 = performance.now() - (r.frozen ?? 0) * 1000; r.playing = true; setRepPlaying(true); }
   };
+  // &turnos=1 → modo POR TURNOS (como mmam): cada evento se juega
+  // UNA vez y la escena se queda quieta en su pose final hasta
+  // pulsar ⏭. Es el flujo que tendrá el CombatScreen integrado.
+  const turnosRef = useRef(q.get("turnos") === "1");
+  const repNext = () => {
+    const r = repRef.current;
+    if (r.playing || r.idx >= r.steps.length - 1) return;
+    r.idx++; r.t0 = performance.now(); r.frozen = 0; r.playing = true;
+    setRepIdx(r.idx); setRepPlaying(true);
+  };
 
   const modelRef = useRef(modelId); modelRef.current = modelId;
   const setRef = useRef(moveSet); setRef.current = moveSet;
@@ -378,14 +388,19 @@ export default function App() {
           let step = rep.steps[rep.idx];
           let tR = rep.playing ? (performance.now() - rep.t0) / 1000 : (rep.frozen ?? step.dur);
           if (rep.playing && tR >= step.dur) {
-            if (rep.idx < rep.steps.length - 1) {
+            if (rep.idx >= rep.steps.length - 1) {
+              rep.playing = false; rep.frozen = step.dur; setRepPlaying(false);
+              setStatus("REPLAY · FIN DEL COMBATE");
+            } else if (turnosRef.current) {
+              // modo turnos: se congela en la pose final del evento
+              // y espera al click del jugador, como en el CombatScreen
+              rep.playing = false; rep.frozen = step.dur; setRepPlaying(false);
+              setStatus(`REPLAY · ⏸ turno ${rep.idx + 1}/${rep.steps.length} listo — pulsa ⏭`);
+            } else {
               rep.idx++; rep.t0 = performance.now(); tR = 0;
               step = rep.steps[rep.idx];
               setRepIdx(rep.idx);
               setStatus(`REPLAY · Asalto ${step.round} · evento ${rep.idx + 1}/${rep.steps.length}`);
-            } else {
-              rep.playing = false; rep.frozen = step.dur; setRepPlaying(false);
-              setStatus("REPLAY · FIN DEL COMBATE");
             }
           }
           tR = Math.min(tR, step.dur);
@@ -657,6 +672,11 @@ export default function App() {
               <button onClick={repPause}
                 className="flex-1 py-2 rounded text-[12px] font-black bg-amber-500 text-black">
                 {repPlaying ? "⏸ Pausar" : "▶ Seguir"}
+              </button>
+              <button onClick={repNext}
+                disabled={repPlaying || repIdx >= repRef.current.steps.length - 1}
+                className={`flex-1 py-2 rounded text-[12px] font-black ${!repPlaying && repIdx < repRef.current.steps.length - 1 ? "bg-sky-500 text-black" : "bg-stone-800 text-stone-600"}`}>
+                ⏭ Siguiente turno
               </button>
               <button onClick={() => startReplay()}
                 className="flex-1 py-2 rounded text-[12px] font-black bg-stone-800">
