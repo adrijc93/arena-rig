@@ -32,6 +32,7 @@ export interface FightEvent {
   hit?: MmamHit;             // calidad del impacto (si aplica)
   knockdown?: boolean;
   flashKnockdown?: boolean;
+  bleeding?: boolean;        // mmam causedBleeding: abre un corte
   newPosition?: string;      // Position de MMAM si hubo cambio
   finish?: MmamFinish;       // si el evento acaba el combate
   message: string;           // narración que escribe MMAM
@@ -46,6 +47,8 @@ export interface ReplayStep {
   round: number;
   label: string;       // línea de narración para el feed
   finish?: MmamFinish;
+  dmg: [number, number];      // daño facial acumulado [player, opponent] tras este paso (0..1)
+  bleed: [boolean, boolean];  // corte abierto [player, opponent]
 }
 
 /* ─── Tabla de traducción acción MMAM → movimiento arena-rig ───
@@ -130,22 +133,45 @@ function landed(e: FightEvent): boolean {
   return e.hit === "clean" || e.hit === "counter" || e.hit === "graze" || !!e.knockdown;
 }
 
+/** Daño facial que deja cada calidad de impacto (0..1 acumulativo). */
+const HIT_DMG: Record<MmamHit, number> = {
+  miss: 0, blocked: 0.02, graze: 0.07, clean: 0.15, counter: 0.20,
+};
+
 /** Traduce el log de combate de MMAM a pasos de escena ejecutables. */
 export function resolveReplay(events: FightEvent[]): ReplayStep[] {
   const steps: ReplayStep[] = [];
+  const dmg: [number, number] = [0, 0];             // [player, opponent]
+  const bleed: [boolean, boolean] = [false, false];
   for (const e of events) {
+    const defIdx = e.attacker === "player" ? 1 : 0;  // quien RECIBE
+
     /* ── Final por KO/TKO: la escena la protagoniza el PERDEDOR
           cayendo a la lona (ko-plano) mientras el otro remata ── */
     if (e.finish && e.finish !== "submission" && !e.finish.startsWith("decision")) {
+      dmg[defIdx] = 1;                               // KO: la cara lo cuenta todo
       steps.push({
         move: "ko-plano", outcome: 0,
         swap: e.attacker === "player",   // el que cae es el OTRO
         dur: KO_DUR, round: e.round, label: e.message, finish: e.finish,
+        dmg: [dmg[0], dmg[1]], bleed: [bleed[0], bleed[1]],
       });
       continue;
     }
 
     const m = MAP[e.action] ?? { move: "guardia-mma", kind: "hold" as Kind };
+
+    /* ── daño acumulado del defensor: golpes y ground & pound dejan
+          marca; los derribos y cortes suman aparte ── */
+    if ((m.kind === "strike" || e.action.startsWith("gnp")) && e.hit) {
+      dmg[defIdx] = Math.min(1, dmg[defIdx] + (HIT_DMG[e.hit] ?? 0));
+    }
+    if (e.knockdown) dmg[defIdx] = Math.min(1, dmg[defIdx] + 0.12);
+    if (e.flashKnockdown) dmg[defIdx] = Math.min(1, dmg[defIdx] + 0.06);
+    if (e.bleeding) {
+      bleed[defIdx] = true;
+      dmg[defIdx] = Math.min(1, dmg[defIdx] + 0.04);
+    }
 
     let outcome = 0;
     if (m.kind === "strike") outcome = landed(e) ? 1 : 0;          // 0 defiende · 1 le entra
@@ -163,6 +189,7 @@ export function resolveReplay(events: FightEvent[]): ReplayStep[] {
     steps.push({
       move: m.move, outcome, swap, dur,
       round: e.round, label: e.message, finish: e.finish,
+      dmg: [dmg[0], dmg[1]], bleed: [bleed[0], bleed[1]],
     });
   }
   return steps;
