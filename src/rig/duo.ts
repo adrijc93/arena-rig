@@ -80,6 +80,8 @@ export const DUO: Record<string, DuoCfg> = {
   "kimura":         { def: "guardia-abajo", mode: "ground", top: true },
   "americana":      { def: "guardia-abajo", mode: "ground", top: true },
   "triangulo":      { def: "guardia-arriba", mode: "ground", top: false },
+  "armbar":         { def: "guardia-arriba", mode: "ground", top: false },
+  "heel-hook":      { def: "caught", mode: "ground", top: false },
   "shrimp":         { def: "side-control", mode: "ground", top: false },
   "upa":            { def: "montada", mode: "ground", top: false },
 
@@ -335,6 +337,78 @@ export const DUO_SEQ: Record<string, DuoSeq> = {
         def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "volcado", from: 0.7, to: 2.7 }, { move: "guardia-abajo", from: 2.7, to: 4.4 }] },
       { atk: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "ippon", from: 0.6, to: 2.6 }, { move: "guardia-mma", from: 2.6, to: 4.4 }],
         def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "defensa-derribo", from: 0.7, to: 2.1 }, { move: "guardia-mma", from: 2.1, to: 4.4 }] },
+    ],
+  },
+
+  /* ═══════════════ SUMISIONES — resultado 0: RESISTE · resultado 1: ¡TAP! ═══════════════ */
+  /* ── MATA LEÓN: desde la espalda, defiende las manos… o tap y se apaga ── */
+  mataleon: {
+    T: 5.6,
+    outcomes: [
+      { atk: [{ move: "espalda", from: 0, to: 1.0 }, { move: "mataleon", from: 1.0, to: 3.6 }, { move: "espalda", from: 3.6, to: 5.6 }],
+        def: [{ move: "espalda", from: 0, to: 1.0 }, { move: "caught", from: 1.0, to: 3.6 }, { move: "espalda", from: 3.6, to: 5.6 }] },
+      { atk: [{ move: "espalda", from: 0, to: 1.0 }, { move: "mataleon", from: 1.0, to: 5.6 }],
+        def: [{ move: "espalda", from: 0, to: 1.0 }, { move: "caught", from: 1.0, to: 2.6 }, { move: "tap-out", from: 2.6, to: 5.6 }] },
+    ],
+  },
+  /* ── ARMBAR: desde la guardia, cadera al cielo… defiende o ¡tap! ── */
+  armbar: {
+    T: 5.2,
+    outcomes: [
+      { atk: [{ move: "guardia-abajo", from: 0, to: 0.9 }, { move: "armbar", from: 0.9, to: 3.4 }, { move: "guardia-abajo", from: 3.4, to: 5.2 }],
+        def: [{ move: "guardia-arriba", from: 0, to: 0.9 }, { move: "caught", from: 0.9, to: 3.4 }, { move: "guardia-arriba", from: 3.4, to: 5.2 }] },
+      { atk: [{ move: "guardia-abajo", from: 0, to: 0.9 }, { move: "armbar", from: 0.9, to: 5.2 }],
+        def: [{ move: "guardia-arriba", from: 0, to: 0.9 }, { move: "caught", from: 0.9, to: 2.4 }, { move: "tap-out", from: 2.4, to: 5.2 }] },
+    ],
+  },
+  /* ── HEEL HOOK: cae a la entreda de piernas… defiende o ¡tap! ── */
+  "heel-hook": {
+    T: 5.2,
+    outcomes: [
+      { atk: [{ move: "guardia-abajo", from: 0, to: 0.9 }, { move: "heel-hook", from: 0.9, to: 3.4 }, { move: "guardia-abajo", from: 3.4, to: 5.2 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "derribado", from: 0.6, to: 1.8 }, { move: "caught", from: 1.8, to: 3.4 }, { move: "guardia-mma", from: 3.4, to: 5.2 }] },
+      { atk: [{ move: "guardia-abajo", from: 0, to: 0.9 }, { move: "heel-hook", from: 0.9, to: 5.2 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.6 }, { move: "derribado", from: 0.6, to: 1.8 }, { move: "caught", from: 1.8, to: 2.8 }, { move: "tap-out", from: 2.8, to: 5.2 }] },
+    ],
+  },
+  /* ── KIMURA: desde arriba, figura de cuatro… defiende o ¡tap! ── */
+  kimura: {
+    T: 5.2,
+    outcomes: [
+      { atk: [{ move: "guardia-arriba", from: 0, to: 0.9 }, { move: "kimura", from: 0.9, to: 3.4 }, { move: "guardia-arriba", from: 3.4, to: 5.2 }],
+        def: [{ move: "guardia-abajo", from: 0, to: 0.9 }, { move: "caught", from: 0.9, to: 3.4 }, { move: "guardia-abajo", from: 3.4, to: 5.2 }] },
+      { atk: [{ move: "guardia-arriba", from: 0, to: 0.9 }, { move: "kimura", from: 0.9, to: 5.2 }],
+        def: [{ move: "guardia-abajo", from: 0, to: 0.9 }, { move: "caught", from: 0.9, to: 2.4 }, { move: "tap-out", from: 2.4, to: 5.2 }] },
+    ],
+  },
+  /* ── AMERICANA: desde la montada… defiende o ¡tap! ── */
+  americana: {
+    T: 5.2,
+    outcomes: [
+      { atk: [{ move: "montada", from: 0, to: 0.9 }, { move: "americana", from: 0.9, to: 3.4 }, { move: "montada", from: 3.4, to: 5.2 }],
+        def: [{ move: "guardia-abajo", from: 0, to: 0.9 }, { move: "caught", from: 0.9, to: 3.4 }, { move: "guardia-abajo", from: 3.4, to: 5.2 }] },
+      { atk: [{ move: "montada", from: 0, to: 0.9 }, { move: "americana", from: 0.9, to: 5.2 }],
+        def: [{ move: "guardia-abajo", from: 0, to: 0.9 }, { move: "caught", from: 0.9, to: 2.4 }, { move: "tap-out", from: 2.4, to: 5.2 }] },
+    ],
+  },
+  /* ── TRIÁNGULO: desde la guardia… defiende o ¡tap! ── */
+  triangulo: {
+    T: 5.2,
+    outcomes: [
+      { atk: [{ move: "guardia-abajo", from: 0, to: 0.9 }, { move: "triangulo", from: 0.9, to: 3.4 }, { move: "guardia-abajo", from: 3.4, to: 5.2 }],
+        def: [{ move: "guardia-arriba", from: 0, to: 0.9 }, { move: "caught", from: 0.9, to: 3.4 }, { move: "guardia-arriba", from: 3.4, to: 5.2 }] },
+      { atk: [{ move: "guardia-abajo", from: 0, to: 0.9 }, { move: "triangulo", from: 0.9, to: 5.2 }],
+        def: [{ move: "guardia-arriba", from: 0, to: 0.9 }, { move: "caught", from: 0.9, to: 2.4 }, { move: "tap-out", from: 2.4, to: 5.2 }] },
+    ],
+  },
+  /* ── GUILLOTINA: de pie… defiende o ¡tap! ── */
+  guillotina: {
+    T: 5.2,
+    outcomes: [
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "guillotina", from: 0.7, to: 3.4 }, { move: "guardia-mma", from: 3.4, to: 5.2 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "caught", from: 0.7, to: 3.4 }, { move: "guardia-mma", from: 3.4, to: 5.2 }] },
+      { atk: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "guillotina", from: 0.7, to: 5.2 }],
+        def: [{ move: "guardia-mma", from: 0, to: 0.7 }, { move: "caught", from: 0.7, to: 2.4 }, { move: "tap-out", from: 2.4, to: 5.2 }] },
     ],
   },
 };
