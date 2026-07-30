@@ -15,7 +15,7 @@ npm run dev
 npm run build
 ```
 
-Cada push a `main` despliega automáticamente el banco de pruebas en GitHub Pages.
+Cada push a `main` despliega automáticamente el banco de pruebas en GitHub Pages (fuente: GitHub Actions).
 
 ## Replay MMAM
 
