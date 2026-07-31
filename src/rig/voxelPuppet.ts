@@ -220,20 +220,27 @@ function faceTexture(skin: number, face?: FaceSpec, dmg?: DamageSpec): THREE.Can
   /* ── DAÑO DE COMBATE ───────────────────────────────────────────
      Se pinta ENCIMA de las facciones, con la misma regla de oro:
      tinta plana y formas sólidas. El nivel revela lesiones en
-     escalones (ojera → ojo hinchado → corte de ceja → nariz → labio
-     → frente); bleeding alarga y aviva los regueros de sangre. */
+     escalones (ojera → pómulo → ojo hinchado → corte de ceja →
+     nariz → labio → frente → baño de sangre); bleeding aviva la
+     sangre, alarga los regueros y añade goteo constante. */
   if (dmg && dmg.level > 0.02) {
     const L = Math.min(1, dmg.level);
     const BL = !!dmg.bleeding;
-    const PURPLE = "rgba(80,38,86,0.88)";   // hematoma
-    const BLOOD = BL ? "#c41e28" : "#8c1620"; // sangre viva / seca
+    const PURPLE = "rgba(80,38,86,0.88)";   // hematoma morado
+    const RED_DARK = "rgba(140,42,44,0.85)"; // amoratado rojizo (golpe fresco)
+    const BLOOD = BL ? "#d42430" : "#8c1620"; // sangre viva / seca
     const trick = (x: number, y: number, len: number, w = 3) => {
       g.fillStyle = BLOOD;
-      g.fillRect(x, y, w, Math.round(len * (BL ? 1.6 : 1)));
+      g.fillRect(x, y, w, Math.round(len * (BL ? 1.8 : 1)));
+      if (BL) g.fillRect(x - 1, y + Math.round(len * 1.8), w + 2, 3); // gota al final
     };
-    if (L >= 0.12) {                          // ojera izquierda machacada
+    if (L >= 0.06) {                          // ojera izquierda machacada
       g.fillStyle = PURPLE;
       g.fillRect(CX - 29, 70, 20, 9);
+    }
+    if (L >= 0.18) {                          // pómulo derecho amoratado
+      g.fillStyle = RED_DARK;
+      g.fillRect(CX + 16, 74, 18, 11);
     }
     if (L >= 0.28) {                          // ojo derecho hinchado, casi cerrado
       g.fillStyle = PURPLE;
@@ -241,27 +248,51 @@ function faceTexture(skin: number, face?: FaceSpec, dmg?: DamageSpec): THREE.Can
       g.fillStyle = INK;
       g.fillRect(CX + 13, 58, 14, 3);         // rendija del párpado
     }
-    if (L >= 0.42) {                          // corte en la ceja izquierda + reguero
+    if (L >= 0.36) {                          // mejilla izquierda hinchada
+      g.fillStyle = RED_DARK;
+      g.fillRect(CX - 36, 80, 15, 13);
+    }
+    if (L >= 0.44) {                          // corte en la ceja izquierda + reguero
       g.fillStyle = BLOOD;
       g.save(); g.translate(CX - 20, 40); g.rotate(0.25); g.fillRect(-2, -6, 5, 13); g.restore();
-      trick(CX - 20, 47, 26);
+      trick(CX - 20, 47, 28);
+      trick(CX - 26, 49, 18, 2);              // segundo hilo (ceja muy abierta)
     }
-    if (L >= 0.55) {                          // nariz sangrando
+    if (L >= 0.55) {                          // nariz rota y sangrando
+      g.fillStyle = RED_DARK;
+      g.fillRect(CX - 7, 72, 14, 7);          // tabique machacado
       g.fillStyle = BLOOD;
       g.fillRect(CX - 6, 78, 12, 6);
-      trick(CX - 3, 84, 12, 4);
+      trick(CX - 4, 84, 14, 4);
+      if (BL) trick(CX + 2, 84, 10, 3);       // las dos fosas
     }
-    if (L >= 0.70) {                          // labio partido + sangre a la barbilla
+    if (L >= 0.66) {                          // labio partido + sangre a la barbilla
       g.fillStyle = BLOOD;
       g.fillRect(CX + 11, 90, 8, 8);
-      trick(CX + 13, 98, 15, 4);
+      trick(CX + 13, 98, 17, 4);
+      g.fillRect(CX - 12, 95, 6, 4);          // sangre en la comisura contraria
     }
-    if (L >= 0.85) {                          // corte en la frente + pómulo derecho morado
+    if (L >= 0.78) {                          // corte en la frente + ojera derecha también
       g.fillStyle = BLOOD;
       g.fillRect(CX + 18, 18, 4, 10);
-      trick(CX + 19, 28, 14);
+      trick(CX + 19, 28, 16);
       g.fillStyle = PURPLE;
-      g.fillRect(CX + 18, 84, 17, 9);
+      g.fillRect(CX + 13, 70, 16, 8);
+    }
+    if (L >= 0.90) {                          // cara destrozada: máscara de sangre
+      g.fillStyle = BLOOD;
+      g.globalAlpha = BL ? 0.85 : 0.5;
+      g.fillRect(CX - 24, 60, 48, 34);        // media cara bañada
+      g.globalAlpha = 1;
+      trick(CX - 10, 94, 22, 5);
+      trick(CX + 6, 94, 26, 5);
+      g.fillStyle = PURPLE;                   // oreja coliflor (borde de la textura)
+      g.fillRect(CX - 52, 52, 8, 22);
+    }
+    if (BL) {                                 // corte ABIERTO: goteo vivo siempre,
+      g.fillStyle = BLOOD;                    // aunque el nivel aún sea bajo
+      if (L < 0.44) { trick(CX - 20, 47, 22); trick(CX - 3, 84, 10, 4); }
+      g.fillRect(CX - 2, 100, 4, 16);         // hilo de la boca al cuello
     }
   }
 
@@ -305,8 +336,9 @@ function headMesh(skin: number, size: number, face?: FaceSpec): THREE.Mesh {
    La definición usa un marrón translúcido (se adapta a cualquier tono
    de piel); los tatuajes van en tinta oscura azul-negra como los reales. */
 
-/** Torso delante/espalda (canvas 128×128 por cara del bloque) */
-function bodyTexture(base: number, body: BodySpec, part: "front" | "back"): THREE.CanvasTexture {
+/** Torso delante/espalda (canvas 128×128 por cara del bloque).
+    dmg = castigo corporal acumulado (0..1): moratones y rozaduras. */
+function bodyTexture(base: number, body: BodySpec, part: "front" | "back", dmg = 0): THREE.CanvasTexture {
   const c = document.createElement("canvas");
   c.width = 128; c.height = 128;
   const g = c.getContext("2d")!;
@@ -413,10 +445,62 @@ function bodyTexture(base: number, body: BodySpec, part: "front" | "back"): THRE
       }
     }
   }
+  /* ── castigo corporal: moratones ENCIMA de músculos y tatuajes ──
+     tinta plana como la cara: manchas rojizas (frescas) y moradas
+     (asentadas) que crecen en escalones con el nivel */
+  if (dmg > 0.04) {
+    const L = Math.min(1, dmg);
+    const FRESH = "rgba(148,40,40,0.72)";   // golpe fresco amoratado
+    const OLD = "rgba(86,38,92,0.78)";      // hematoma asentado
+    const stain = (x: number, y: number, w: number, h: number, col: string) => {
+      g.fillStyle = col;
+      g.fillRect(x, y, w, h);                 // mancha irregular: dos rectas
+      g.fillRect(x + 2, y - 2, w - 4, h + 4); // cruzadas (borde orgánico)
+    };
+    if (part === "front") {
+      if (L >= 0.12) stain(22, 56, 16, 18, FRESH);          // costillas izquierdas (body shots)
+      if (L >= 0.28) stain(88, 62, 18, 16, FRESH);          // costillas derechas
+      if (L >= 0.42) stain(52, 78, 24, 20, OLD);            // boca del estómago
+      if (L >= 0.58) { stain(30, 26, 20, 16, OLD);          // pectoral izquierdo
+                       stain(90, 44, 14, 12, FRESH); }      // costado derecho alto
+      if (L >= 0.75) { stain(46, 60, 36, 40, "rgba(120,34,44,0.5)"); // torso entero castigado
+                       stain(96, 90, 12, 14, OLD); }
+      if (L >= 0.90) { g.fillStyle = "#a12428";             // rozadura abierta (piel levantada)
+                       g.fillRect(60, 84, 10, 4);
+                       g.fillRect(26, 60, 8, 4); }
+    } else {
+      if (L >= 0.16) stain(28, 44, 18, 20, FRESH);          // riñón izquierdo
+      if (L >= 0.36) stain(82, 50, 18, 18, FRESH);          // riñón derecho
+      if (L >= 0.55) stain(50, 24, 28, 16, OLD);            // trapecios (ground & pound)
+      if (L >= 0.78) stain(40, 60, 48, 26, "rgba(120,34,44,0.45)"); // espalda entera
+    }
+  }
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter;
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
+}
+
+/** Regenera las caras del torso (delante/espalda) con el castigo
+    corporal acumulado. El torso es la única malla de CAJA con 6
+    materiales (slots 4=frente, 5=espalda); devuelve false si no está. */
+export function applyBodyDamage(root: THREE.Object3D, base: number | undefined, body: BodySpec | undefined, dmgLevel: number): boolean {
+  let mesh: THREE.Mesh | null = null;
+  root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!mesh && m.isMesh && Array.isArray(m.material) && (m.material as unknown[]).length === 6) mesh = m;
+  });
+  if (!mesh) return false;
+  const mats = (mesh as THREE.Mesh).material as THREE.MeshStandardMaterial[];
+  const spec = body ?? {};
+  const color = base ?? D.torso;
+  for (const [slot, part] of [[4, "front"], [5, "back"]] as const) {
+    const old = mats[slot].map;
+    mats[slot].map = bodyTexture(color, spec, part, dmgLevel);
+    mats[slot].needsUpdate = true;
+    old?.dispose();
+  }
+  return true;
 }
 
 /** Manga de tatuajes para el antebrazo (canvas 64×64 que envuelve 360°) */
@@ -574,7 +658,10 @@ export function buildVoxelPuppet(spec: PuppetSpec = {}): THREE.Object3D {
       fa.add(cyl(0.075, 0.065, 0.26, skin, 0, -0.14, 0, "limb"));            // antebrazo
     }
     if (spec.gloves !== undefined) {
-      fa.add(cyl(0.10, 0.095, 0.17, spec.gloves, 0, -0.33, 0, "limb")); // guante MMA
+      const glove = cyl(0.10, 0.095, 0.17, spec.gloves, 0, -0.33, 0, "limb"); // guante MMA
+      glove.userData.glove = true;               // se tiñe con la sangre del rival
+      glove.userData.gloveColor = spec.gloves;
+      fa.add(glove);
     } else {
       fa.add(cyl(0.08, 0.075, 0.13, skin, 0, -0.33, 0, "limb"));      // puño
     }
