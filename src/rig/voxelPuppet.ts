@@ -252,13 +252,15 @@ function faceTexture(skin: number, face?: FaceSpec, dmg?: DamageSpec): THREE.Can
       g.fillStyle = RED_DARK;
       g.fillRect(CX - 36, 80, 15, 13);
     }
-    if (L >= 0.44) {                          // corte en la ceja izquierda + reguero
+    /* los CORTES van por detrás de los moratones: la sangre solo
+       aparece con la cara ya castigada (umbrales altos) */
+    if (L >= 0.52) {                          // corte en la ceja izquierda + reguero
       g.fillStyle = BLOOD;
       g.save(); g.translate(CX - 20, 40); g.rotate(0.25); g.fillRect(-2, -6, 5, 13); g.restore();
       trick(CX - 20, 47, 28);
       trick(CX - 26, 49, 18, 2);              // segundo hilo (ceja muy abierta)
     }
-    if (L >= 0.55) {                          // nariz rota y sangrando
+    if (L >= 0.64) {                          // nariz rota y sangrando
       g.fillStyle = RED_DARK;
       g.fillRect(CX - 7, 72, 14, 7);          // tabique machacado
       g.fillStyle = BLOOD;
@@ -266,20 +268,20 @@ function faceTexture(skin: number, face?: FaceSpec, dmg?: DamageSpec): THREE.Can
       trick(CX - 4, 84, 14, 4);
       if (BL) trick(CX + 2, 84, 10, 3);       // las dos fosas
     }
-    if (L >= 0.66) {                          // labio partido + sangre a la barbilla
+    if (L >= 0.75) {                          // labio partido + sangre a la barbilla
       g.fillStyle = BLOOD;
       g.fillRect(CX + 11, 90, 8, 8);
       trick(CX + 13, 98, 17, 4);
       g.fillRect(CX - 12, 95, 6, 4);          // sangre en la comisura contraria
     }
-    if (L >= 0.78) {                          // corte en la frente + ojera derecha también
+    if (L >= 0.85) {                          // corte en la frente + ojera derecha también
       g.fillStyle = BLOOD;
       g.fillRect(CX + 18, 18, 4, 10);
       trick(CX + 19, 28, 16);
       g.fillStyle = PURPLE;
       g.fillRect(CX + 13, 70, 16, 8);
     }
-    if (L >= 0.90) {                          // cara destrozada: máscara de sangre
+    if (L >= 0.93) {                          // cara destrozada: máscara de sangre
       g.fillStyle = BLOOD;
       g.globalAlpha = BL ? 0.85 : 0.5;
       g.fillRect(CX - 24, 60, 48, 34);        // media cara bañada
@@ -289,9 +291,9 @@ function faceTexture(skin: number, face?: FaceSpec, dmg?: DamageSpec): THREE.Can
       g.fillStyle = PURPLE;                   // oreja coliflor (borde de la textura)
       g.fillRect(CX - 52, 52, 8, 22);
     }
-    if (BL) {                                 // corte ABIERTO: goteo vivo siempre,
-      g.fillStyle = BLOOD;                    // aunque el nivel aún sea bajo
-      if (L < 0.44) { trick(CX - 20, 47, 22); trick(CX - 3, 84, 10, 4); }
+    if (BL && L >= 0.25) {                    // corte ABIERTO sobre cara ya dañada:
+      g.fillStyle = BLOOD;                    // goteo vivo extra (nunca a cara limpia)
+      if (L < 0.52) { trick(CX - 20, 47, 22); trick(CX - 3, 84, 10, 4); }
       g.fillRect(CX - 2, 100, 4, 16);         // hilo de la boca al cuello
     }
   }
