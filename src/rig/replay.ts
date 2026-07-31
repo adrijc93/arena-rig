@@ -117,6 +117,21 @@ const MAP: Record<string, { move: string; kind: Kind; outcome?: number }> = {
   sub_heel_hook:  { move: "heel-hook", kind: "sub" },
   /* utilidad */
   rest:           { move: "guardia-mma", kind: "hold" },
+  /* ── entradas SINTÉTICAS de mmam (sin action.type): finisher,
+        minijuegos y recuperaciones las crean los slices del store
+        con solo { id, name } — el adaptador usa action.id ── */
+  finisher:       { move: "overhand", kind: "strike" },
+  ko_recovery:    { move: "zozobra", kind: "hold" },
+  submission_defense: { move: "sumision", kind: "hold" },
+  submission_finish:  { move: "sumision", kind: "sub" },
+  escape:         { move: "upa", kind: "hold" },
+  escape_fail:    { move: "guardia-abajo", kind: "hold" },
+  sub_escape:     { move: "upa", kind: "hold" },
+  sub_defend:     { move: "sumision", kind: "hold" },
+  gnp:            { move: "ground-pound", kind: "hold" },
+  gnp_fail:       { move: "guardia-arriba", kind: "hold" },
+  counter:        { move: "jab", kind: "strike" },
+  check:          { move: "low-kick", kind: "defense", outcome: 0 },
 };
 
 /** Duración del guion DUO_SEQ de cada movimiento (s). Espejo de los
@@ -199,7 +214,7 @@ export function resolveReplay(events: FightEvent[]): ReplayStep[] {
 
     /* ── Final por KO/TKO: la escena la protagoniza el PERDEDOR
           cayendo a la lona (ko-plano) mientras el otro remata ── */
-    if (e.finish && e.finish !== "submission" && !e.finish.startsWith("decision")) {
+    if (e.finish && e.finish !== "submission" && !(e.finish ?? "").startsWith("decision")) {
       dmg[defIdx] = 1;                               // KO: la cara lo cuenta todo
       steps.push({
         move: "ko-plano", outcome: 0,
@@ -214,7 +229,7 @@ export function resolveReplay(events: FightEvent[]): ReplayStep[] {
 
     /* ── daño acumulado del defensor: golpes y ground & pound dejan
           marca; los derribos y cortes suman aparte ── */
-    if ((m.kind === "strike" || e.action.startsWith("gnp")) && e.hit) {
+    if ((m.kind === "strike" || (e.action ?? "").startsWith("gnp")) && e.hit) {
       dmg[defIdx] = Math.min(1, dmg[defIdx] + (HIT_DMG[e.hit] ?? 0));
     }
     if (e.knockdown) dmg[defIdx] = Math.min(1, dmg[defIdx] + 0.12);
@@ -283,8 +298,9 @@ export interface MmamLogEntry {
   attacker: "player" | "opponent";
   action: {
     id: string;
-    type: string;          // ActionType de mmam
-    baseDamage: number;
+    type?: string;         // ActionType de mmam (las entradas
+                           // sintéticas de finisher/minijuegos NO lo traen)
+    baseDamage?: number;
   };
   result: {
     hit: boolean;
@@ -308,10 +324,12 @@ export interface MmamLogEntry {
 export function deriveHit(e: MmamLogEntry): MmamHit {
   if (e.result.hitQuality) return e.result.hitQuality;
   if (!e.result.hit) return "miss";
-  // acciones sin daño propio (derribos, transiciones, escapes, clinch):
+  // acciones sin daño propio (derribos, transiciones, escapes, clinch)
+  // y entradas sintéticas (finisher, minijuegos — sin baseDamage):
   // hit=true significa que consumaron, no que impactaron un golpe
-  if (e.action.baseDamage === 0) return "clean";
-  const r = e.result.damage / e.action.baseDamage;
+  const bd = e.action.baseDamage ?? 0;
+  if (bd === 0) return "clean";
+  const r = e.result.damage / bd;
   if (e.result.damage === 0 || r < 0.2) return "blocked";
   if (r >= 0.7) return "counter";    // critico: coreografía de contragolpe
   if (r < 0.45) return "graze";
@@ -323,7 +341,7 @@ export function mmamEntryToFightEvent(e: MmamLogEntry): FightEvent {
   return {
     round: e.round,
     attacker: e.attacker,
-    action: e.action.type,
+    action: e.action.type ?? e.action.id,   // sintéticas: por id
     hit: deriveHit(e),
     knockdown: e.result.knockdown || undefined,
     flashKnockdown: e.result.flashKnockdown || undefined,
